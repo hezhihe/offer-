@@ -1,0 +1,32 @@
+# Environment and secrets
+.env
+*.env
+backend/.env
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+dist/
+frontend/dist/
+build/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local uploads and temporary runtime files
+.uploads/
+uploads/
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.claude/
+
+# Generated local visual test artifacts
+test_*.png
