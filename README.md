@@ -160,6 +160,7 @@ python -c "import main; print('backend import ok')"
 
 | 变量 | 说明 |
 | --- | --- |
+| `PYTHON_VERSION` | `3.11.11`，避免 Render 默认 Python 版本导致依赖编译失败 |
 | `SUPABASE_URL` | Supabase 项目地址 |
 | `SUPABASE_SERVICE_KEY` | Supabase service role key |
 | `API_SECRET_KEY` | JWT 签名密钥 |
