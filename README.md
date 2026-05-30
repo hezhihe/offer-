@@ -123,6 +123,52 @@ python -c "import main; print('backend import ok')"
 - `API_SECRET_KEY` 换成生产级随机密钥
 - Supabase service role key 只保存在后端环境变量里
 
+## 部署建议
+
+本项目是前后端分离项目，不建议把整个仓库当成一个纯前端项目直接部署。
+
+### Vercel 前端
+
+在 Vercel 导入 GitHub 仓库 `hezhihe/offer-`，设置：
+
+| 配置项 | 值 |
+| --- | --- |
+| Framework Preset | Vite |
+| Root Directory | `frontend` |
+| Install Command | `npm install` |
+| Build Command | `npm run build` |
+| Output Directory | `dist` |
+
+前端环境变量：
+
+| 变量 | 值 |
+| --- | --- |
+| `VITE_API_BASE_URL` | `https://你的-render-后端域名/api` |
+
+### Render 后端
+
+在 Render 导入同一个 GitHub 仓库，使用 `render.yaml` 或手动创建 Web Service：
+
+| 配置项 | 值 |
+| --- | --- |
+| Root Directory | `backend` |
+| Runtime | Python |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn main:app --host 0.0.0.0 --port $PORT` |
+
+后端环境变量：
+
+| 变量 | 说明 |
+| --- | --- |
+| `SUPABASE_URL` | Supabase 项目地址 |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key |
+| `API_SECRET_KEY` | JWT 签名密钥 |
+| `CORS_ORIGINS` | Vercel 前端公网地址，例如 `https://offer-xxx.vercel.app` |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key |
+| `DEEPSEEK_API_URL` | `https://api.deepseek.com/v1/chat/completions` |
+
+部署完成后，先拿到 Render 后端域名，再回到 Vercel 更新 `VITE_API_BASE_URL` 并重新部署前端。
+
 ## MVP 风险
 
 - 当前用户体系是项目自建登录，不是 Supabase Auth。
