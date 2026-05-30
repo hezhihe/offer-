@@ -6,11 +6,15 @@ CREATE TABLE IF NOT EXISTS public.interview_history (
     questions JSONB NOT NULL DEFAULT '[]',
     answers JSONB NOT NULL DEFAULT '[]',
     scores JSONB NOT NULL DEFAULT '[]',
+    feedbacks JSONB NOT NULL DEFAULT '[]',
     total_score INTEGER NOT NULL,
     avg_score REAL NOT NULL,
     advice TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE public.interview_history
+ADD COLUMN IF NOT EXISTS feedbacks JSONB NOT NULL DEFAULT '[]';
 
 -- 创建索引
 CREATE INDEX IF NOT EXISTS idx_interview_history_user_phone ON public.interview_history(user_phone);

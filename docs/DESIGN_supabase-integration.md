@@ -320,8 +320,8 @@ except AuthApiError as e:
 
 ```env
 # Supabase 配置
-SUPABASE_URL=https://agcnmytwvcbfpomyhpqa.supabase.co
-SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-supabase-service-role-key
 
 # DeepSeek AI 配置（已有）
 DEEPSEEK_API_KEY=your-deepseek-api-key
@@ -335,8 +335,8 @@ API_SECRET_KEY=your-secret-key
 
 ```env
 VITE_API_BASE_URL=http://localhost:8000/api
-VITE_SUPABASE_URL=https://agcnmytwvcbfpomyhpqa.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_-tUq4bkDhgaBv6TRkVB9Og_pk4nHfP1
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-publishable-key
 ```
 
 ## 8. 依赖变更

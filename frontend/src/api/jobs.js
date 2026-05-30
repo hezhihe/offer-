@@ -10,6 +10,9 @@ export const jobsApi = {
   getTodayTip() {
     return client.get('/tips/today')
   },
+  getTips() {
+    return client.get('/tips')
+  },
   getStats() {
     return client.get('/stats/mine')
   }

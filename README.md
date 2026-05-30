@@ -1,170 +1,131 @@
-# Offer罗盘 - AI驱动的2026届毕业生求职助手
+# Offer Compass（Offer 罗盘）
 
-## 项目简介
+Offer Compass 是面向 2026 届大学生的求职指导 MVP，覆盖岗位浏览、简历分析、模拟面试、招聘日历、个人中心、意见反馈和登录后修改密码等核心流程。
 
-Offer罗盘是一款面向2026届毕业生的AI驱动求职助手，致力于帮助大学生提升求职竞争力。
+## 当前交付范围
 
-## 核心功能
-
-- 📄 **简历重构**: AI分析JD，智能匹配关键词，优化简历内容
-- 🎯 **面试模拟**: 智能评分，微表情分析，面试报告
-- 📅 **招聘日历**: 新质生产力岗位精准推送，双视图展示
-- 👤 **个人中心**: 用户统计，使用记录，意见反馈
-
-## 技术架构
-
-```
-┌─────────────────────────────────────────────────────┐
-│                    前端 (Vue 3)                    │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │
-│  │ 首页    │ │ 简历    │ │ 面试    │ │ 日历    │  │
-│  │ Home    │ │ Resume  │ │ Interview││ Calendar│  │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘  │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐             │
-│  │ Profile │ │ Auth    │ │ 公共组件 │             │
-│  └─────────┘ └─────────┘ └─────────┘             │
-└─────────────────┬─────────────────────────────────┘
-                  │ HTTP API
-                  ▼
-┌─────────────────────────────────────────────────────┐
-│                   后端 (FastAPI)                   │
-│  ┌─────────────────┐ ┌─────────────────────────┐   │
-│  │ /api/auth       │ │ 认证模块 (JWT)         │   │
-│  │ /api/resume     │ │ 简历分析模块           │   │
-│  │ /api/interview  │ │ 面试模拟模块           │   │
-│  │ /api/jobs       │ │ 岗位管理模块           │   │
-│  │ /api/tips       │ │ 求职提示模块           │   │
-│  └─────────────────┘ └─────────────────────────┘   │
-│                         │                         │
-│                         ▼                         │
-│              ┌─────────────────┐                  │
-│              │ DeepSeek API    │                  │
-│              └─────────────────┘                  │
-└─────────────────────────────────────────────────────┘
-```
+- 登录 / 注册：手机号 + 密码，密码使用 bcrypt 哈希保存。
+- 个人中心：头像上传、使用记录、意见反馈、登录后修改密码。
+- 简历分析：支持粘贴文本和上传 PDF / Word，分析结果写入 Supabase。
+- 模拟面试：按岗位生成问题、提交回答、生成反馈并保存历史。
+- 招聘日历：岗位列表、日历视图、岗位详情和更完整的 JD 描述。
+- 首页 Tips：求职提示展示和切换。
 
 ## 技术栈
 
-| 分类 | 技术 | 版本 |
-|------|------|------|
-| 前端框架 | Vue | 3.4+ |
-| 路由 | Vue Router | 4.3+ |
-| 状态管理 | Pinia | 2.1+ |
-| HTTP客户端 | Axios | 1.6+ |
-| 构建工具 | Vite | 5.1+ |
-| 后端框架 | FastAPI | 0.110+ |
-| AI模型 | DeepSeek V4 | API |
+| 层级 | 技术 |
+| --- | --- |
+| 前端 | Vue 3、Vite、Pinia、Vue Router、Axios、原生 CSS |
+| 后端 | FastAPI、Pydantic、JWT、passlib / bcrypt、uvicorn |
+| 数据库 | Supabase PostgreSQL |
+| 文件存储 | Supabase Storage |
+| 文件解析 | pypdf、python-docx |
+| AI 能力 | DeepSeek 主模型 + 降级逻辑 |
 
-## 快速开始
+## 目录结构
 
-### 前置条件
+```text
+backend/
+  main.py
+  app/services/
+  database/
+  requirements.txt
+  .env.example
 
-- Node.js >= 20.x
-- Python >= 3.10
+frontend/
+  src/api/
+  src/components/
+  src/composables/
+  src/router/
+  src/stores/
+  src/views/
+  package.json
+  .env.example
 
-### 安装依赖
+docs/
+experiments/
+tests/
+```
+
+## 本地启动
+
+后端：
 
 ```bash
-# 前端依赖
+cd backend
+pip install -r requirements.txt
+copy .env.example .env
+python -m uvicorn main:app --host 0.0.0.0 --port 8005 --reload
+```
+
+前端：
+
+```bash
 cd frontend
 npm install
-
-# 后端依赖
-cd ../backend
-pip install -r requirements.txt
-```
-
-### 配置环境变量
-
-编辑 `backend/.env` 文件：
-
-```env
-DEEPSEEK_API_KEY=your-deepseek-api-key
-DEEPSEEK_API_URL=https://api.deepseek.com/v1/chat/completions
-API_SECRET_KEY=your-secret-key-here-keep-it-safe
-```
-
-### 启动服务
-
-```bash
-# 启动后端 (端口 8000)
-cd backend
-python main.py
-
-# 启动前端 (端口 5173)
-cd frontend
 npm run dev
 ```
 
-### 访问地址
+访问地址：
 
-- 前端: http://localhost:5173
-- 后端API: http://localhost:8000
-- API文档: http://localhost:8000/docs
+- 前端：http://127.0.0.1:5173
+- 后端文档：http://127.0.0.1:8005/docs
 
-## 项目结构
+## 环境变量
 
-```
-.
-├── frontend/                    # 前端应用
-│   ├── src/
-│   │   ├── api/                 # API接口
-│   │   ├── components/          # 公共组件
-│   │   ├── composables/         # 组合式函数
-│   │   ├── stores/              # Pinia状态管理
-│   │   ├── views/               # 页面视图
-│   │   ├── assets/styles/       # 全局样式
-│   │   ├── router/              # 路由配置
-│   │   ├── App.vue              # 根组件
-│   │   └── main.js              # 入口文件
-│   ├── index.html
-│   ├── vite.config.js
-│   └── package.json
-├── backend/                     # 后端应用
-│   ├── main.py                  # FastAPI入口
-│   ├── requirements.txt         # Python依赖
-│   └── .env                     # 环境变量
-└── README.md
-```
+后端环境变量在 `backend/.env`，不要提交真实密钥。
 
-## API接口
+| 变量 | 说明 |
+| --- | --- |
+| `SUPABASE_URL` | Supabase 项目地址 |
+| `SUPABASE_SERVICE_KEY` | Supabase service role key，只放后端 |
+| `API_SECRET_KEY` | JWT 签名密钥，生产环境必须换成长随机值 |
+| `CORS_ORIGINS` | 允许访问后端的前端域名，多个用英文逗号分隔 |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key |
+| `DEEPSEEK_API_URL` | DeepSeek API 地址 |
 
-| 接口 | 方法 | 描述 |
-|------|------|------|
-| `/api/auth/login` | POST | 用户登录 |
-| `/api/auth/signup` | POST | 用户注册 |
-| `/api/resume/analyze` | POST | 简历分析 |
-| `/api/interview/start` | POST | 开始面试 |
-| `/api/interview/answer` | POST | 提交答案 |
-| `/api/interview/complete` | POST | 完成面试 |
-| `/api/jobs` | GET | 获取岗位列表 |
-| `/api/tips/today` | GET | 获取今日提示 |
+前端环境变量在 `frontend/.env`：
 
-## 开发说明
+| 变量 | 说明 |
+| --- | --- |
+| `VITE_API_BASE_URL` | API 基础地址。本地开发默认走 Vite 代理 `/api` |
 
-### 前端开发
+## 数据库脚本
+
+Supabase 表结构和种子数据在 `backend/database/`：
+
+- `create_users_table.sql`
+- `create_resume_history.sql`
+- `create_interview_history.sql`
+- `create_user_feedback.sql`
+- `seed_jobs.sql`
+- `seed_tips.sql`
+- `update_job_requirements_mvp.sql`
+
+上线前需要确认这些脚本已经在目标 Supabase 项目执行完成。
+
+## 上线前检查
 
 ```bash
 cd frontend
-npm run dev      # 开发模式
-npm run build    # 生产构建
-npm run preview  # 预览构建结果
+npm run build
 ```
-
-### 后端开发
 
 ```bash
 cd backend
-python main.py       # 启动开发服务器
-uvicorn main:app     # 使用uvicorn启动
+python -c "import main; print('backend import ok')"
 ```
 
-## 注意事项
+上线时不要使用 `127.0.0.1` 作为公网 API 地址。部署后需要把：
 
-1. **DeepSeek API Key**: 需要在硅基流动平台申请API Key
-2. **安全性**: 生产环境请使用HTTPS，API密钥请勿提交到代码仓库
-3. **Mock数据**: 未配置API Key时，系统自动使用Mock数据
+- 后端 `CORS_ORIGINS` 改成真实前端域名
+- 前端 `VITE_API_BASE_URL` 改成真实后端 API 地址，或由平台反向代理到 `/api`
+- `API_SECRET_KEY` 换成生产级随机密钥
+- Supabase service role key 只保存在后端环境变量里
 
-## License
+## MVP 风险
 
-MIT License
+- 当前用户体系是项目自建登录，不是 Supabase Auth。
+- 邮箱 / 短信找回密码还未接入，MVP 只支持登录后修改密码。
+- 招聘岗位数据是种子数据，不是实时招聘平台爬取数据。
+- 公网交付需要部署前端、后端，并配置 HTTPS 和生产环境变量。

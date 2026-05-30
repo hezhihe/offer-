@@ -10,6 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loginError = ref('')
   const signupError = ref('')
   const avatarError = ref('')
+  const passwordError = ref('')
   const isAuthenticated = computed(() => !!token.value && token.value !== 'guest-token' && !!user.value)
 
   if (cachedUser) {
@@ -106,5 +107,17 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, token, authReady, loginError, signupError, avatarError, isAuthenticated, login, signup, logout, fetchUser, uploadAvatar }
+  async function changePassword(oldPassword, newPassword) {
+    passwordError.value = ''
+    try {
+      await authApi.changePassword(oldPassword, newPassword)
+      return true
+    } catch (error) {
+      console.error('Change password failed:', error.response?.data || error)
+      passwordError.value = error.response?.data?.detail || '密码修改失败'
+      return false
+    }
+  }
+
+  return { user, token, authReady, loginError, signupError, avatarError, passwordError, isAuthenticated, login, signup, logout, fetchUser, uploadAvatar, changePassword }
 })

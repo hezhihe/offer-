@@ -31,28 +31,24 @@
       </div>
 
       <!-- 历史记录 -->
-      <div v-if="interviewStore.history.length > 0" style="margin-top:24px">
-        <h3 style="font-size:15px;font-weight:700;margin-bottom:12px">📊 面试历史</h3>
+      <div v-if="interviewStore.history.length > 0" class="interview-history-section">
+        <h3 class="interview-history-title">📊 面试历史</h3>
+        <div class="interview-history-grid">
         <div
           v-for="item in interviewStore.history"
           :key="item.id"
-          class="card"
-          style="margin-bottom:10px;padding:14px;cursor:pointer"
+          class="card interview-history-card"
           @click="viewHistory(item)"
         >
-          <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="interview-history-card-inner">
             <div>
-              <div style="font-weight:600;font-size:14px">{{ interviewStore.jobTypeNames[item.job_type] || item.job_type }}</div>
-              <div style="font-size:12px;color:var(--medium);margin-top:2px">{{ formatDate(item.created_at) }}</div>
+              <div class="interview-history-name">{{ interviewStore.jobTypeNames[item.job_type] || item.job_type }}</div>
+              <div class="interview-history-time">{{ formatDate(item.created_at) }}</div>
             </div>
-            <div style="text-align:right">
-              <div style="font-size:20px;font-weight:800" :style="{ color: item.avg_score >= 7 ? 'var(--green)' : 'var(--amber)' }">
-                {{ displayScore(item.avg_score) }}
-              </div>
-              <div style="font-size:11px;color:var(--medium)">平均分</div>
-            </div>
+            <div class="interview-history-arrow">›</div>
           </div>
         </div>
+          </div>
       </div>
     </div>
 
@@ -61,24 +57,12 @@
       <h2 class="summary-title">面试总结</h2>
       <div class="summary-job">{{ interviewStore.jobTypeNames[interviewStore.jobType] || '目标岗位' }}</div>
 
-      <div class="summary-score-panel">
-        <div>
-          <div class="report-total">{{ Math.round(interviewStore.report.avg_score * 10) / 10 }}</div>
-          <div class="report-total-label">平均分（满分10分）</div>
-        </div>
-        <div class="summary-score-copy">
-          <strong>{{ summaryLevel }}</strong>
-          <span>{{ summaryOneLine }}</span>
-        </div>
-      </div>
-
       <div class="summary-advice-card">
         <div class="summary-section-head">
           <div>
             <h3>具体优化建议</h3>
-            <p>按岗位能力、回答结构和低分题逐条调整</p>
+            <p>按岗位能力、回答结构和证据缺口逐条调整</p>
           </div>
-          <button class="btn btn-secondary btn-sm" @click="copyInterviewAdvice">一键复制</button>
         </div>
         <div class="advice-list">
           <div
@@ -96,7 +80,36 @@
         <div class="report-item" v-for="(detail, index) in interviewStore.report.details" :key="index">
           <div class="ri-q">{{ index + 1 }}. {{ detail.question }}</div>
           <div class="ri-a">{{ detail.answer || '未作答' }}</div>
-          <div class="ri-score">得分：{{ detail.score }}/10</div>
+          <button
+            class="qa-advice-toggle"
+            type="button"
+            @click="toggleReportAnalysis(index)"
+          >
+            {{ expandedReportAnalysisIndexes.has(index) ? '收起问题分析' : '查看问题分析' }}
+          </button>
+          <div v-if="expandedReportAnalysisIndexes.has(index)" class="qa-advice-panel">
+            <div v-if="!detail.feedback" class="qa-advice-empty">
+              这道题暂无可展开的问题分析。后端返回完整单题反馈后，这里会展示回答亮点、提升方向和行动建议。
+            </div>
+            <template v-else>
+              <div
+                v-for="(section, sectionIndex) in feedbackSections(detail.feedback)"
+                :key="section.title"
+                class="qa-advice-block"
+              >
+                <strong>{{ section.title }}</strong>
+                <ul>
+                  <li v-for="(point, pointIndex) in section.points" :key="`${sectionIndex}-${pointIndex}`">
+                    {{ point }}
+                  </li>
+                </ul>
+              </div>
+              <div class="qa-advice-summary">
+                <strong>改进建议</strong>
+                <p>{{ detail.feedback.suggestion || detail.feedback.summary || '建议围绕问题补充具体场景、个人动作、量化结果和下一步修改方案。' }}</p>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
       <button class="btn btn-primary btn-block" @click="resetInterview">
@@ -127,14 +140,18 @@
             </div>
             <div v-if="turn.feedback" class="micro-feedback">
               <div class="mf-item" v-for="(dim, idx) in turn.feedback.dimensions" :key="idx">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
-                  <span style="font-weight:600;font-size:13px">{{ dim.label }}</span>
-                  <span style="font-weight:800;font-size:14px" :style="{ color: dim.score >= 7 ? 'var(--green)' : dim.score >= 5 ? 'var(--amber)' : 'var(--red)' }">{{ dim.score }}/10</span>
+                <div class="mf-title">
+                  {{ normalizeFeedbackTitle(dim.label) }}
                 </div>
-                <div style="font-size:12px;color:var(--medium);line-height:1.5">{{ dim.comment }}</div>
+                <ul class="mf-list">
+                  <li v-for="(point, pointIndex) in splitFeedbackComment(dim.comment)" :key="pointIndex">
+                    {{ point }}
+                  </li>
+                </ul>
               </div>
-              <div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(0,0,0,.1)">
-                💡 <strong>改进建议：</strong>{{ turn.feedback.suggestion }}
+              <div class="mf-summary">
+                <strong>改进建议</strong>
+                <p>{{ turn.feedback.suggestion }}</p>
               </div>
             </div>
           </template>
@@ -148,6 +165,10 @@
               <span></span><span></span><span></span>
             </span>
           </div>
+        </div>
+
+        <div v-if="interviewStore.answerError" class="interview-error">
+          {{ interviewStore.answerError }}
         </div>
 
         <div class="chat-input-area">
@@ -186,17 +207,6 @@
           <h3 class="detail-title">{{ interviewStore.jobTypeNames[interviewStore.historyDetail.job_type] || interviewStore.historyDetail.job_type || '面试详情' }}</h3>
           <div class="detail-subtitle">{{ formatDate(interviewStore.historyDetail.created_at) }}</div>
 
-          <div class="score-summary">
-            <div>
-              <div class="score-summary-num">{{ displayScore(interviewStore.historyDetail.avg_score) }}</div>
-              <div class="score-summary-label">平均分</div>
-            </div>
-            <div>
-              <div class="score-summary-num small">{{ interviewStore.historyDetail.total_score || 0 }}</div>
-              <div class="score-summary-label">总分</div>
-            </div>
-          </div>
-
           <h4 class="detail-section-title">综合建议</h4>
           <div class="result-area">{{ interviewStore.historyDetail.advice || '暂无建议' }}</div>
 
@@ -208,7 +218,36 @@
           >
             <div class="ri-q">{{ index + 1 }}. {{ detail.question }}</div>
             <div class="ri-a">{{ detail.answer || '未作答' }}</div>
-            <div class="ri-score">得分：{{ detail.score || 0 }}/10</div>
+            <button
+              class="qa-advice-toggle"
+              type="button"
+              @click="toggleHistoryAdvice(index)"
+            >
+              {{ expandedHistoryAdviceIndexes.has(index) ? '收起修改建议' : '查看修改建议' }}
+            </button>
+            <div v-if="expandedHistoryAdviceIndexes.has(index)" class="qa-advice-panel">
+              <div v-if="!detail.feedback" class="qa-advice-empty">
+                这条历史记录暂无当时保存的单题修改建议。完成新的模拟面试后，这里会展示完整修改建议。
+              </div>
+              <template v-else>
+                <div
+                  v-for="(section, sectionIndex) in feedbackSections(detail.feedback)"
+                  :key="section.title"
+                  class="qa-advice-block"
+                >
+                  <strong>{{ section.title }}</strong>
+                  <ul>
+                    <li v-for="(point, pointIndex) in section.points" :key="`${sectionIndex}-${pointIndex}`">
+                      {{ point }}
+                    </li>
+                  </ul>
+                </div>
+                <div class="qa-advice-summary">
+                  <strong>改进建议</strong>
+                  <p>{{ detail.feedback.suggestion || detail.feedback.summary || '建议围绕问题补充具体场景、个人动作、量化结果和下一步修改方案。' }}</p>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
       </div>
@@ -223,6 +262,8 @@ import { useInterviewStore } from '../stores/interview'
 const interviewStore = useInterviewStore()
 const answerText = ref('')
 const chatMessagesRef = ref(null)
+const expandedReportAnalysisIndexes = ref(new Set())
+const expandedHistoryAdviceIndexes = ref(new Set())
 
 onMounted(() => {
   interviewStore.fetchHistory()
@@ -245,18 +286,8 @@ const reportAdviceItems = computed(() => {
   return advice
     .split(/\n+/)
     .map(item => item.replace(/^建议\d+[:：]\s*/, '').replace(/^总结[:：]\s*/, '').trim())
+    .filter(item => !isInternalReviewNote(item))
     .filter(Boolean)
-})
-
-const summaryLevel = computed(() => {
-  const score = Number(interviewStore.report?.avg_score || 0)
-  if (score >= 8) return '竞争力较强'
-  if (score >= 6) return '具备基础竞争力'
-  return '需要重点补强'
-})
-
-const summaryOneLine = computed(() => {
-  return reportAdviceItems.value[0] || '建议结合岗位要求继续完善项目案例、量化指标和表达结构。'
 })
 
 function scrollChatToBottom() {
@@ -284,12 +315,84 @@ const historyDetails = computed(() => {
   const questions = Array.isArray(detail.questions) ? detail.questions : []
   const answers = Array.isArray(detail.answers) ? detail.answers : []
   const scores = Array.isArray(detail.scores) ? detail.scores : []
+  const feedbacks = Array.isArray(detail.feedbacks) ? detail.feedbacks : []
   return questions.map((question, index) => ({
     question,
     answer: answers[index] || '',
-    score: scores[index] || 0
+    score: scores[index] || 0,
+    feedback: feedbacks[index] || null
   }))
 })
+
+function feedbackSections(feedback) {
+  if (!feedback) return []
+
+  const dimensionSections = Array.isArray(feedback.dimensions)
+    ? feedback.dimensions
+        .map(item => ({
+          title: normalizeFeedbackTitle(item.label),
+          points: splitFeedbackComment(item.comment)
+        }))
+        .filter(section => section.points.length)
+    : []
+
+  if (dimensionSections.length) return dimensionSections
+
+  return [
+    {
+      title: '回答亮点',
+      points: Array.isArray(feedback.hit_points) && feedback.hit_points.length
+        ? feedback.hit_points
+        : ['本题暂无明确亮点记录。']
+    },
+    {
+      title: '提升方向',
+      points: Array.isArray(feedback.missed_points) && feedback.missed_points.length
+        ? feedback.missed_points
+        : ['建议补充更具体的岗位证据。']
+    },
+    {
+      title: '行动建议',
+      points: Array.isArray(feedback.rewrite_advice) && feedback.rewrite_advice.length
+        ? feedback.rewrite_advice
+        : ['建议围绕问题补充具体场景、个人动作、量化结果和下一步修改方案。']
+    }
+  ]
+}
+
+function normalizeFeedbackTitle(label) {
+  if (label === '提升机会') return '提升方向'
+  return label || '分析项'
+}
+
+function feedbackList(feedback, type) {
+  if (!feedback) return []
+  if (type === 'hit') {
+    return Array.isArray(feedback.hit_points) && feedback.hit_points.length
+      ? feedback.hit_points
+      : feedback.dimensions?.filter(item => item.label?.includes('相关') || item.label?.includes('匹配')).map(item => item.comment).filter(Boolean).slice(0, 2) || ['暂未识别到明确切中点。']
+  }
+  if (type === 'missed') {
+    return Array.isArray(feedback.missed_points) && feedback.missed_points.length
+      ? feedback.missed_points
+      : feedback.dimensions?.map(item => item.comment).filter(Boolean).slice(0, 3) || ['还需要补充更具体的岗位证据。']
+  }
+  return Array.isArray(feedback.rewrite_advice) && feedback.rewrite_advice.length
+    ? feedback.rewrite_advice
+    : [feedback.suggestion || '建议补充具体项目、个人动作、结果和下一步修改方案。']
+}
+
+function splitFeedbackComment(comment) {
+  if (!comment) return []
+  return String(comment)
+    .split(/[；;。]\s*/)
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
+function isInternalReviewNote(text) {
+  return /不展示分数|反馈方式|定性反馈|目标岗位是/.test(text)
+}
 
 async function startInterview(jobType) {
   if (interviewStore.isStarting) return
@@ -302,7 +405,13 @@ async function submitAnswer() {
   const answer = answerText.value
   answerText.value = ''
   
-  await interviewStore.answer(answer)
+  try {
+    await interviewStore.answer(answer)
+  } catch {
+    answerText.value = answer
+    scrollChatToBottom()
+    return
+  }
   
   if (interviewStore.currentQuestionIndex >= 5) {
     await interviewStore.complete()
@@ -311,30 +420,25 @@ async function submitAnswer() {
   }
 }
 
-async function copyInterviewAdvice() {
-  const text = [
-    '面试总结',
-    `岗位：${interviewStore.jobTypeNames[interviewStore.jobType] || interviewStore.jobType || '目标岗位'}`,
-    `平均分：${displayScore(interviewStore.report?.avg_score)}/10`,
-    '',
-    ...(reportAdviceItems.value.map((item, index) => `${index === 0 ? '总结' : `建议${index}`}：${item}`))
-  ].join('\n')
-
-  try {
-    await navigator.clipboard.writeText(text)
-    alert('已复制面试总结和优化建议')
-  } catch {
-    alert('复制失败，请手动选择文本复制')
-  }
-}
-
 function resetInterview() {
+  expandedReportAnalysisIndexes.value = new Set()
   interviewStore.reset()
   interviewStore.fetchHistory()
 }
 
+function toggleReportAnalysis(index) {
+  const next = new Set(expandedReportAnalysisIndexes.value)
+  if (next.has(index)) {
+    next.delete(index)
+  } else {
+    next.add(index)
+  }
+  expandedReportAnalysisIndexes.value = next
+}
+
 async function viewHistory(item) {
   try {
+    expandedHistoryAdviceIndexes.value = new Set()
     await interviewStore.fetchHistoryDetail(item.id)
   } catch (e) {
     alert('加载面试详情失败: ' + (e.response?.data?.detail || e.message || '请稍后重试'))
@@ -342,7 +446,18 @@ async function viewHistory(item) {
 }
 
 function closeHistoryDetail() {
+  expandedHistoryAdviceIndexes.value = new Set()
   interviewStore.clearHistoryDetail()
+}
+
+function toggleHistoryAdvice(index) {
+  const next = new Set(expandedHistoryAdviceIndexes.value)
+  if (next.has(index)) {
+    next.delete(index)
+  } else {
+    next.add(index)
+  }
+  expandedHistoryAdviceIndexes.value = next
 }
 
 function displayScore(value) {
@@ -358,6 +473,57 @@ function formatDate(dateStr) {
 </script>
 
 <style scoped>
+.interview-history-section {
+  margin-top: 28px;
+  width: 100%;
+}
+.interview-history-title {
+  font-size: 17px;
+  font-weight: 800;
+  margin: 0 0 14px;
+  text-align: left;
+}
+.interview-history-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+}
+.interview-history-card {
+  cursor: pointer;
+  min-height: 92px;
+  padding: 18px 20px;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.interview-history-card:hover {
+  border-color: rgba(67, 97, 238, .35);
+  box-shadow: 0 16px 34px rgba(67, 97, 238, .12);
+  transform: translateY(-2px);
+}
+.interview-history-card-inner {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  height: 100%;
+  justify-content: space-between;
+}
+.interview-history-name {
+  color: var(--dark);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.interview-history-time {
+  color: var(--medium);
+  font-size: 13px;
+  margin-top: 6px;
+}
+.interview-history-arrow {
+  color: var(--medium);
+  flex: 0 0 auto;
+  font-size: 28px;
+  line-height: 1;
+}
 .history-detail-modal {
   position: relative;
 }
@@ -402,6 +568,130 @@ function formatDate(dateStr) {
   color: var(--medium);
   margin-top: 2px;
 }
+.qa-advice-toggle {
+  border: 0;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 10px;
+  padding: 7px 12px;
+}
+.qa-advice-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-top: 10px;
+  padding: 12px;
+}
+.qa-advice-block + .qa-advice-block,
+.qa-advice-summary {
+  border-top: 1px solid #e2e8f0;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+.qa-advice-block strong,
+.qa-advice-summary strong {
+  color: var(--dark);
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.qa-advice-block ul {
+  color: var(--medium);
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+  padding-left: 18px;
+}
+.qa-advice-summary p,
+.qa-advice-empty {
+  color: var(--medium);
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+}
+.micro-feedback {
+  margin: 12px 0 16px;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(67, 97, 238, .08), rgba(114, 9, 183, .08));
+}
+.interview-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.mf-item {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(15, 23, 42, .08);
+}
+.mf-item:first-child {
+  padding-top: 0;
+}
+.mf-title {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--dark);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+.mf-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--medium);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.mf-list li::marker {
+  color: var(--blue);
+}
+.mf-summary {
+  padding-top: 12px;
+  color: var(--dark);
+  font-size: 14px;
+  line-height: 1.65;
+}
+.mf-summary strong {
+  display: block;
+  margin-bottom: 4px;
+}
+.mf-summary p {
+  margin: 0;
+  color: var(--medium);
+}
+.qf-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--dark);
+  margin-bottom: 6px;
+}
+.qf-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--medium);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.qf-summary {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(0,0,0,.1);
+  color: var(--dark);
+  font-size: 13px;
+  line-height: 1.6;
+}
 .starting-hint {
   display: inline-flex;
   align-items: center;
@@ -444,35 +734,9 @@ function formatDate(dateStr) {
   font-size: 14px;
   color: var(--medium);
 }
-.summary-score-panel {
-  display: grid;
-  grid-template-columns: minmax(100px, 150px) 1fr;
-  gap: 16px;
-  align-items: center;
-  margin-bottom: 18px;
-  padding: 18px;
-  border-radius: var(--radius);
-  background: linear-gradient(135deg, rgba(67, 97, 238, .08), rgba(76, 201, 240, .08));
-}
-.summary-score-panel .report-total,
-.summary-score-panel .report-total-label {
-  text-align: center;
-}
-.summary-score-copy strong {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 18px;
-  color: var(--dark);
-}
-.summary-score-copy span {
-  display: block;
-  color: var(--medium);
-  font-size: 14px;
-  line-height: 1.6;
-}
 .summary-advice-card {
   margin-bottom: 22px;
-  padding: 18px;
+  padding: 18px 0;
   border: 1px solid rgba(67, 97, 238, .12);
   border-radius: var(--radius);
   background: #fff;
@@ -484,6 +748,7 @@ function formatDate(dateStr) {
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 14px;
+  padding: 0 18px;
 }
 .summary-section-head h3 {
   margin: 0;
@@ -504,12 +769,15 @@ function formatDate(dateStr) {
   display: grid;
   grid-template-columns: 34px 1fr;
   gap: 10px;
-  padding: 12px;
-  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  border-radius: 0;
   background: var(--blue-light);
   color: var(--dark);
   font-size: 14px;
   line-height: 1.65;
+}
+.advice-item + .advice-item {
+  border-top: 1px solid rgba(67, 97, 238, .1);
 }
 .advice-index {
   width: 28px;
@@ -529,8 +797,11 @@ function formatDate(dateStr) {
   color: var(--dark);
 }
 @media (max-width: 640px) {
-  .summary-score-panel {
+  .interview-history-grid {
     grid-template-columns: 1fr;
+  }
+  .interview-history-card {
+    min-height: 86px;
   }
   .summary-section-head {
     align-items: stretch;

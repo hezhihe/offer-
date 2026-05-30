@@ -13,6 +13,12 @@ export const authApi = {
   getMe() {
     return client.get('/auth/me')
   },
+  changePassword(oldPassword, newPassword) {
+    return client.post('/auth/change-password', {
+      old_password: oldPassword,
+      new_password: newPassword
+    })
+  },
   uploadAvatar(file) {
     const formData = new FormData()
     formData.append('avatar', file)

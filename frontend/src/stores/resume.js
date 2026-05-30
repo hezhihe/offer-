@@ -10,6 +10,8 @@ export const useResumeStore = defineStore('resume', () => {
   const history = ref([])
   const historyDetail = ref(null)
   const isLoadingDetail = ref(false)
+  let historyPromise = null
+  let historyFetchedAt = 0
 
   async function analyze() {
     if (!jdContent.value || !experience.value) return
@@ -24,12 +26,22 @@ export const useResumeStore = defineStore('resume', () => {
   }
 
   async function fetchHistory() {
-    try {
-      const response = await resumeApi.getHistory()
-      history.value = response.data
-    } catch {
-      history.value = []
-    }
+    const now = Date.now()
+    if (historyPromise) return historyPromise
+    if (history.value.length && now - historyFetchedAt < 30000) return
+
+    historyPromise = resumeApi.getHistory()
+      .then(response => {
+        history.value = response.data
+        historyFetchedAt = Date.now()
+      })
+      .catch(() => {
+        history.value = []
+      })
+      .finally(() => {
+        historyPromise = null
+      })
+    return historyPromise
   }
 
   async function fetchHistoryDetail(id) {

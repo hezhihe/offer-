@@ -17,6 +17,9 @@ export const useInterviewStore = defineStore('interview', () => {
   const history = ref([])
   const historyDetail = ref(null)
   const isLoadingDetail = ref(false)
+  const answerError = ref('')
+  let historyPromise = null
+  let historyFetchedAt = 0
 
   const jobTypeNames = {
     robot: '机器人工程师',
@@ -35,6 +38,7 @@ export const useInterviewStore = defineStore('interview', () => {
     scores.value = []
     feedbacks.value = []
     report.value = null
+    answerError.value = ''
 
     try {
       const response = await interviewApi.start(jobTypeVal)
@@ -52,27 +56,26 @@ export const useInterviewStore = defineStore('interview', () => {
   async function answer(answerText) {
     if (!answerText.trim()) return
     isAnswering.value = true
-    answers.value.push(answerText)
+    answerError.value = ''
 
     try {
       const response = await interviewApi.answer(interviewId.value, currentQuestionIndex.value, answerText)
+      answers.value.push(answerText)
       scores.value.push(response.data.score)
       feedbacks.value.push(response.data.feedback)
       if (response.data.next_question) {
         questions.value.push(response.data.next_question)
       }
+      currentQuestionIndex.value++
       return response.data
-    } catch {
-      const mock = getStrictFallbackFeedback(answerText)
-      scores.value.push(mock.score)
-      feedbacks.value.push(mock)
-      if (questions.value.length < 5) {
-        questions.value.push(getLocalFollowUp(jobType.value, answerText, questions.value.length + 1))
-      }
-      return mock
+    } catch (error) {
+      const detail = error.response?.data?.detail
+      answerError.value = detail === 'Interview not found'
+        ? '当前面试会话已失效，通常是后端重启或热更新导致，请退出后重新开始一轮。'
+        : `AI 评分服务暂时不可用，请稍后重试。${detail ? `原因：${detail}` : ''}`
+      throw error
     } finally {
       isAnswering.value = false
-      currentQuestionIndex.value++
     }
   }
 
@@ -97,15 +100,26 @@ export const useInterviewStore = defineStore('interview', () => {
     interviewId.value = null
     isCompleted.value = false
     report.value = null
+    answerError.value = ''
   }
 
   async function fetchHistory() {
-    try {
-      const response = await interviewApi.getHistory()
-      history.value = response.data
-    } catch {
-      history.value = []
-    }
+    const now = Date.now()
+    if (historyPromise) return historyPromise
+    if (history.value.length && now - historyFetchedAt < 30000) return
+
+    historyPromise = interviewApi.getHistory()
+      .then(response => {
+        history.value = response.data
+        historyFetchedAt = Date.now()
+      })
+      .catch(() => {
+        history.value = []
+      })
+      .finally(() => {
+        historyPromise = null
+      })
+    return historyPromise
   }
 
   async function fetchHistoryDetail(id) {
@@ -225,9 +239,11 @@ export const useInterviewStore = defineStore('interview', () => {
 
   function getStrictFallbackFeedback(answerText) {
     const text = answerText.trim()
-    const badMarkers = ['不知道', '不会', '随便', '吃饭', '睡觉', '哈哈', '测试']
-    const hasBadMarker = badMarkers.some(marker => text.includes(marker))
-    const isInvalid = !text || text.length < 8 || hasBadMarker || /(.)\1{6,}/.test(text)
+    const normalized = text.replace(/\s/g, '')
+    const directBadAnswers = ['不知道', '不会', '不懂', '随便', '无', '没有', '不知道了', '测试', 'test']
+    const hasShortDirectBadAnswer = text.length <= 25 && ['我不知道', '我不会', '我不懂', '不知道怎么答', '没有想过', '随便答'].some(marker => normalized.includes(marker))
+    const hasShortIrrelevantAnswer = text.length <= 40 && ['吃饭', '睡觉', '天气', '哈哈'].some(marker => normalized.includes(marker))
+    const isInvalid = !text || text.length < 8 || directBadAnswers.includes(normalized) || hasShortDirectBadAnswer || hasShortIrrelevantAnswer || /(.)\1{6,}/.test(text)
     const zeroDimensions = [
       { label: '问题相关性', score: 0, comment: '回答没有有效回应题目' },
       { label: '内容准确性', score: 0, comment: '没有可判断的有效内容' },
@@ -242,6 +258,10 @@ export const useInterviewStore = defineStore('interview', () => {
         is_relevant: false,
         strict_reason: '回答无效或明显答非所问',
         dimensions: zeroDimensions,
+        hit_points: [],
+        missed_points: ['没有有效回应当前面试问题', '没有提供岗位相关证据', '没有说明个人动作和结果'],
+        rewrite_advice: ['先正面回答问题', '补充一个真实场景', '说明你的动作、结果和复盘'],
+        summary: '这版回答目前不能作为有效面试回答，需要先回到问题本身。',
         suggestion: '请重新围绕题目作答，至少说明具体场景、你的动作、结果和复盘。'
       }
     }
@@ -250,6 +270,10 @@ export const useInterviewStore = defineStore('interview', () => {
       score: 2,
       is_relevant: true,
       strict_reason: '评分服务异常，使用保守兜底评分',
+      hit_points: ['回答有一定信息量，可以继续整理。'],
+      missed_points: ['本地兜底无法完整判断岗位匹配', '还需要补充具体证据和结果'],
+      rewrite_advice: ['用一句话先回答问题', '补一个真实项目或真实经历', '把经历扣回岗位要求'],
+      summary: '当前为本地兜底分析，建议稍后重试 AI 复盘。',
       dimensions: [
         { label: '问题相关性', score: 2, comment: '本地兜底无法完整判断，只给低分' },
         { label: '内容准确性', score: 2, comment: '需要后端评分服务进一步判断' },
@@ -321,6 +345,7 @@ export const useInterviewStore = defineStore('interview', () => {
     history,
     historyDetail,
     isLoadingDetail,
+    answerError,
     start,
     answer,
     complete,

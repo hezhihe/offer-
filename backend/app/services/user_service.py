@@ -51,22 +51,38 @@ def _load_users_from_db() -> None:
             normalized = _normalize_user(user)
             _users_db[normalized["phone"]] = normalized
         logger.info("Loaded %s users from %s", len(result.data or []), USERS_TABLE)
+        _loaded = True
     except Exception as e:
         logger.warning("Failed to load users from %s: %s", USERS_TABLE, e)
-    finally:
-        _loaded = True
+
+
+def _fetch_user_by_phone(phone: str) -> Optional[Dict[str, Any]]:
+    """Fetch one user directly from Supabase when the cache misses."""
+    try:
+        result = get_supabase().table(USERS_TABLE).select("*").eq("phone", phone).limit(1).execute()
+        if not result.data:
+            return None
+        normalized = _normalize_user(result.data[0])
+        _users_db[phone] = normalized
+        return normalized
+    except Exception as e:
+        logger.warning("Failed to fetch user %s from %s: %s", phone, USERS_TABLE, e)
+        return None
 
 
 def get_user(phone: str) -> Optional[Dict[str, Any]]:
     """Get a user by phone number."""
     _load_users_from_db()
-    return _users_db.get(phone)
+    cached = _users_db.get(phone)
+    if cached:
+        return cached
+    return _fetch_user_by_phone(phone)
 
 
 def user_exists(phone: str) -> bool:
     """Return whether a phone number is already registered."""
     _load_users_from_db()
-    return phone in _users_db
+    return phone in _users_db or _fetch_user_by_phone(phone) is not None
 
 
 def create_user(phone: str, hashed_password: str, nickname: str, email: Optional[str] = None) -> Dict[str, Any]:
@@ -109,6 +125,25 @@ def update_last_login(phone: str) -> Optional[str]:
     if phone in _users_db:
         _users_db[phone]["last_login_at"] = logged_in_at
     return logged_in_at
+
+
+def update_user_password(phone: str, hashed_password: str) -> bool:
+    """Persist a new password hash and keep the process cache in sync."""
+    try:
+        get_supabase().table(USERS_TABLE).update({
+            "hashed_password": hashed_password,
+        }).eq("phone", phone).execute()
+    except Exception as e:
+        logger.error("Failed to update password for %s: %s", phone, e)
+        return False
+
+    if phone in _users_db:
+        _users_db[phone]["hashed_password"] = hashed_password
+    else:
+        user = _fetch_user_by_phone(phone)
+        if user:
+            user["hashed_password"] = hashed_password
+    return True
 
 
 def get_all_users() -> Dict[str, Dict[str, Any]]:

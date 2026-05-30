@@ -1,14 +1,16 @@
 -- 岗位数据种子
-INSERT INTO public.jobs (company, title, deadline, salary, category, capital, requirements, women_friendly, url) VALUES
-('优必选科技', '机器人算法工程师', '2026-06-15', '15K-25K', 'robot', '5亿+', '硕士及以上，机器人/自动化相关专业，熟悉ROS、运动控制算法', false, 'https://www.ubtrobot.com'),
-('大疆创新', '低空经济运营专员', '2026-06-20', '12K-20K', 'lowAltitude', '10亿+', '本科及以上，航空管理/交通运输相关专业，了解低空政策法规', true, 'https://we.dji.com'),
-('宁德时代', '新材料研发工程师', '2026-07-01', '18K-30K', 'material', '100亿+', '硕士及以上，材料科学/化学工程，有电池材料研究经验优先', true, 'https://www.catl.com'),
-('商汤科技', 'AI算法工程师', '2026-06-10', '20K-35K', 'ai', '50亿+', '硕士及以上，计算机/AI相关专业，熟悉PyTorch、深度学习框架', false, 'https://www.sensetime.com'),
-('比亚迪', '新能源系统工程师', '2026-07-15', '15K-25K', 'energy', '200亿+', '本科及以上，电气工程/自动化，了解BMS系统开发', true, 'https://www.byd.com'),
-('云从科技', 'AI产品经理', '2026-06-25', '15K-22K', 'ai', '10亿+', '本科及以上，有AI产品0-1经验，了解大模型应用场景', true, 'https://www.cloudwalk.cn'),
-('埃斯顿自动化', '机器人控制工程师', '2026-07-10', '12K-20K', 'robot', '20亿+', '本科及以上，自动化/控制工程，熟悉PLC、伺服控制', false, 'https://www.estun.com'),
-('亿航智能', '低空经济产品经理', '2026-06-30', '15K-25K', 'lowAltitude', '5亿+', '本科及以上，有出行/航空产品经验，了解eVTOL行业', false, 'https://www.ehang.com'),
-('光威复材', '新材料测试工程师', '2026-07-20', '10K-18K', 'material', '15亿+', '本科及以上，材料/化工专业，熟悉碳纤维复合材料测试标准', true, 'https://www.gwcomposites.com'),
-('科大讯飞', 'AI语音算法工程师', '2026-06-18', '18K-30K', 'ai', '30亿+', '硕士及以上，语音信号处理/自然语言处理，有语音合成经验优先', false, 'https://www.iflytek.com'),
-('小鹏汇天', '低空飞行器工程师', '2026-07-05', '20K-35K', 'lowAltitude', '10亿+', '硕士及以上，航空航天/飞行器设计，了解eVTOL适航标准', false, 'https://www.xpeng.com'),
-('天合光能', '新能源光伏工程师', '2026-06-28', '12K-22K', 'energy', '50亿+', '本科及以上，光伏/半导体相关专业，了解HJT电池技术', true, 'https://www.trinasolar.com');
+INSERT INTO public.jobs (company, title, deadline, salary, category, capital, education, requirements, women_friendly, url) VALUES
+('优必选科技', '机器人算法工程师', '2026-06-15', '15K-25K', 'robot', '上市机器人企业', '硕士及以上', '硕士及以上，机器人/自动化相关专业，熟悉ROS、运动控制算法', false, 'https://www.ubtrobot.com'),
+('大疆创新', '低空经济运营专员', '2026-06-20', '12K-20K', 'lowAltitude', '大型科技企业', '本科及以上', '本科及以上，航空管理/交通运输相关专业，了解低空政策法规', true, 'https://we.dji.com'),
+('宁德时代', '新材料研发工程师', '2026-07-01', '18K-30K', 'material', '头部新能源企业', '硕士及以上', '硕士及以上，材料科学/化学工程，有电池材料研究经验优先', true, 'https://www.catl.com'),
+('商汤科技', 'AI算法工程师', '2026-06-10', '20K-35K', 'ai', '上市AI企业', '硕士及以上', '硕士及以上，计算机/AI相关专业，熟悉PyTorch、深度学习框架', false, 'https://www.sensetime.com'),
+('比亚迪', '新能源系统工程师', '2026-07-15', '15K-25K', 'energy', '头部车企', '本科及以上', '本科及以上，电气工程/自动化，了解BMS系统开发', true, 'https://www.byd.com'),
+('云从科技', 'AI产品经理', '2026-06-25', '15K-22K', 'ai', '上市AI企业', '本科及以上', '本科及以上，有AI产品0-1经验，了解大模型应用场景', true, 'https://www.cloudwalk.cn'),
+('埃斯顿自动化', '机器人控制工程师', '2026-07-10', '12K-20K', 'robot', '上市自动化企业', '本科及以上', '本科及以上，自动化/控制工程，熟悉PLC、伺服控制', false, 'https://www.estun.com'),
+('亿航智能', '低空经济产品经理', '2026-06-30', '15K-25K', 'lowAltitude', '上市eVTOL企业', '本科及以上', '本科及以上，有出行/航空产品经验，了解eVTOL行业', false, 'https://www.ehang.com'),
+('光威复材', '新材料测试工程师', '2026-07-20', '10K-18K', 'material', '上市新材料企业', '本科及以上', '本科及以上，材料/化工专业，熟悉碳纤维复合材料测试标准', true, 'https://www.gwcomposites.com'),
+('科大讯飞', 'AI语音算法工程师', '2026-06-18', '18K-30K', 'ai', '上市AI企业', '硕士及以上', '硕士及以上，语音信号处理/自然语言处理，有语音合成经验优先', false, 'https://www.iflytek.com'),
+('小鹏汇天', '低空飞行器工程师', '2026-07-05', '20K-35K', 'lowAltitude', '成长型飞行汽车企业', '硕士及以上', '硕士及以上，航空航天/飞行器设计，了解eVTOL适航标准', false, 'https://www.xpeng.com'),
+('天合光能', '新能源光伏工程师', '2026-06-28', '12K-22K', 'energy', '上市新能源企业', '本科及以上', '本科及以上，光伏/半导体相关专业，了解HJT电池技术', true, 'https://www.trinasolar.com'),
+('顺丰无人机', '低空运维助理', '2026-07-08', '7K-12K', 'lowAltitude', '大型物流集团业务', '专科及以上', '专科及以上，机电/航空服务/物流相关专业，能配合现场巡检和飞行任务记录', true, 'https://www.sf-express.com'),
+('新松机器人', '机器人装调技术员', '2026-07-18', '8K-13K', 'robot', '上市机器人企业', '专科及以上', '专科及以上，机电一体化/自动化相关专业，熟悉基础电气装配和设备调试', false, 'https://www.siasun.com');

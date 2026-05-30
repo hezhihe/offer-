@@ -7,8 +7,11 @@
 from typing import List, Optional, Dict, Any
 from app.services.supabase_client import get_supabase
 import logging
+import time
 
 logger = logging.getLogger(__name__)
+_jobs_cache: Dict[str, Any] = {"data": None, "expires_at": 0}
+JOBS_CACHE_SECONDS = 300
 
 
 def _map_job_record(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -20,6 +23,9 @@ def _map_job_record(record: Dict[str, Any]) -> Dict[str, Any]:
     - women_friendly → womenFriendly
     - 其他字段保持不变
     """
+    requirements = record.get("requirements", "")
+    education = record.get("education") or _infer_education_from_requirements(requirements)
+
     return {
         "id": record.get("id"),
         "company": record.get("company", ""),
@@ -28,11 +34,21 @@ def _map_job_record(record: Dict[str, Any]) -> Dict[str, Any]:
         "salary": record.get("salary", ""),
         "category": record.get("category", ""),
         "capital": record.get("capital", ""),
-        "requirements": record.get("requirements", ""),
+        "requirements": requirements,
         "womenFriendly": record.get("women_friendly", False),  # snake → camel
-        "education": record.get("education", "不限"),
+        "education": education,
         "url": record.get("url", ""),
     }
+
+
+def _infer_education_from_requirements(requirements: str) -> str:
+    if "硕士及以上" in requirements:
+        return "硕士及以上"
+    if "本科及以上" in requirements:
+        return "本科及以上"
+    if "专科及以上" in requirements or "大专及以上" in requirements:
+        return "专科及以上"
+    return "不限"
 
 
 class JobService:
@@ -52,12 +68,15 @@ class JobService:
             category: 岗位分类筛选，默认 "all" 返回全部
                      可选值: robot, ai, lowAltitude, material, energy
             education: 学历筛选，默认 "all" 返回全部
-                     可选值: 本科, 硕士
+                     可选值: 专科, 本科, 硕士
         
         Returns:
             List[Dict]: 岗位列表，每个岗位是一个字典（camelCase 格式）
         """
         try:
+            if category == "all" and education == "all" and _jobs_cache["data"] is not None and time.time() < _jobs_cache["expires_at"]:
+                return _jobs_cache["data"]
+
             supabase = get_supabase()
             
             # 构建查询
@@ -67,20 +86,24 @@ class JobService:
             if category != "all":
                 query = query.eq("category", category)
             
-            # 学历筛选逻辑：
-            # "本科" → 返回"本科及以上"和"不限"
-            # "硕士" → 返回"硕士及以上"和"不限"
+            # 学历筛选逻辑按“候选人学历可投范围”处理：
+            # "专科" → 返回"专科及以上"和"不限"
+            # "本科" → 返回"专科及以上"、"本科及以上"和"不限"
+            # "硕士" → 返回全部学历门槛
             # "all" → 不筛选
-            if education == "本科":
-                query = query.in_("education", ["本科及以上", "不限"])
-            elif education == "硕士":
-                query = query.in_("education", ["硕士及以上", "不限"])
+            if education == "专科":
+                query = query.in_("education", ["专科及以上", "不限"])
+            elif education == "本科":
+                query = query.in_("education", ["专科及以上", "本科及以上", "不限"])
             
             # 执行查询
             result = query.execute()
             
             # 字段映射：数据库 snake_case → API camelCase
             mapped = [_map_job_record(record) for record in result.data]
+            if category == "all" and education == "all":
+                _jobs_cache["data"] = mapped
+                _jobs_cache["expires_at"] = time.time() + JOBS_CACHE_SECONDS
             
             logger.info(f"查询岗位数据成功，分类: {category}, 数量: {len(mapped)}")
             return mapped

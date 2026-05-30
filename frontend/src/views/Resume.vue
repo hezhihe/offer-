@@ -49,6 +49,11 @@
             ✅ {{ selectedFile.name }}
           </div>
         </div>
+        <div v-if="selectedFile" class="selected-file-actions">
+          <button type="button" class="remove-file-btn" @click="removeSelectedFile">
+            删除已选文件
+          </button>
+        </div>
         <input 
           ref="fileInput" 
           type="file" 
@@ -180,8 +185,6 @@
 
           <details class="history-raw">
             <summary>查看原始输入</summary>
-            <h4 class="detail-section-title">原始 JD</h4>
-            <div class="result-area">{{ resumeStore.historyDetail.original_jd }}</div>
             <h4 class="detail-section-title">原始简历</h4>
             <div class="result-area">{{ resumeStore.historyDetail.original_resume }}</div>
           </details>
@@ -204,6 +207,7 @@ const mode = ref('upload')
 const jdContent = ref('')
 const resumeText = ref('')
 const selectedFile = ref(null)
+const fileInput = ref(null)
 const analyzing = ref(false)
 const result = ref(null)
 
@@ -225,6 +229,16 @@ function handleFileSelect(e) {
 
 function handleDrop(e) {
   selectedFile.value = e.dataTransfer.files[0] || null
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
+function removeSelectedFile() {
+  selectedFile.value = null
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
 }
 
 async function analyze() {
@@ -260,11 +274,41 @@ async function analyze() {
   }
 }
 
-function copyResult() {
-  if (result.value) {
-    navigator.clipboard.writeText(result.value.refactored_resume)
-    toast.show('已复制到剪贴板')
+async function copyText(text) {
+  if (!text) return false
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    // Fall through to the textarea method for in-app browsers or blocked permissions.
   }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  textarea.style.top = '0'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+
+  try {
+    return document.execCommand('copy')
+  } catch {
+    return false
+  } finally {
+    document.body.removeChild(textarea)
+  }
+}
+
+async function copyResult() {
+  const text = result.value?.refactored_resume || ''
+  const ok = await copyText(text)
+  toast.show(ok ? '优化简历已复制' : '复制失败，请长按或手动选中文本复制')
 }
 
 function viewHistoryAlert(item) {
@@ -323,6 +367,24 @@ function formatDate(dateStr) {
 .upload-zone:hover {
   border-color: var(--blue);
   background: rgba(59,130,246,0.05);
+}
+.selected-file-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+.remove-file-btn {
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--red);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 14px;
+}
+.remove-file-btn:active {
+  transform: scale(0.98);
 }
 .history-detail-modal {
   position: relative;

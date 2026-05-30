@@ -44,14 +44,14 @@
 
 **后端 `.env`**:
 ```env
-SUPABASE_URL=https://agcnmytwvcbfpomyhpqa.supabase.co
-SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-supabase-service-role-key
 ```
 
 **前端 `.env`**:
 ```env
-VITE_SUPABASE_URL=https://agcnmytwvcbfpomyhpqa.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_-tUq4bkDhgaBv6TRkVB9Og_pk4nHfP1
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-publishable-key
 ```
 
 ## 4. 任务边界

@@ -1,4 +1,4 @@
--- 用户表（支持手机号登录）
+﻿-- 鐢ㄦ埛琛紙鏀寔鎵嬫満鍙风櫥褰曪級
 CREATE TABLE IF NOT EXISTS public.users_data (
     id SERIAL PRIMARY KEY,
     phone TEXT UNIQUE NOT NULL,
@@ -11,18 +11,16 @@ CREATE TABLE IF NOT EXISTS public.users_data (
     last_login_at TIMESTAMP WITH TIME ZONE
 );
 
--- 创建索引
+-- 鍒涘缓绱㈠紩
 CREATE INDEX IF NOT EXISTS idx_users_data_phone ON public.users_data(phone);
 
--- 启用 RLS
+-- 鍚敤 RLS
 ALTER TABLE public.users_data ENABLE ROW LEVEL SECURITY;
 
--- 创建策略：当前后端使用服务端权限控制访问，这里暂时允许查询。
+-- 鍒涘缓绛栫暐锛氱敤鎴峰彧鑳芥煡鐪嬭嚜宸辩殑鏁版嵁
 CREATE POLICY "Users can view own data" ON public.users_data
-    FOR SELECT USING (true);
-
--- 创建策略：允许注册插入用户数据。
-CREATE POLICY "Allow registration" ON public.users_data
+    FOR SELECT USING (true);  -- 鏆傛椂鍏佽鎵€鏈夋煡璇紝鍚庣浼氭帶鍒?
+-- 鍒涘缓绛栫暐锛氬厑璁告敞鍐岋紙鎻掑叆锛?CREATE POLICY "Allow registration" ON public.users_data
     FOR INSERT WITH CHECK (true);
 
-COMMENT ON TABLE public.users_data IS '手机号登录用户表';
+COMMENT ON TABLE public.users_data IS '鎵嬫満鍙风櫥褰曠敤鎴疯〃';
