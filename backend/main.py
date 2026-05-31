@@ -152,7 +152,16 @@ class StatsResponse(BaseModel):
 stats_cache: Dict[str, Dict] = {}
 
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except (ValueError, TypeError):
+        # bcrypt 版本兼容：如果 verify 失败，尝试重新 hash 后比较
+        import hashlib
+        safe_pwd = hashlib.sha256(plain_password.encode()).hexdigest()[:72]
+        try:
+            return pwd_context.verify(safe_pwd, hashed_password)
+        except (ValueError, TypeError):
+            return False
 
 def get_password_hash(password):
     return pwd_context.hash(password)
