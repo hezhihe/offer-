@@ -164,7 +164,12 @@ def verify_password(plain_password, hashed_password):
             return False
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    try:
+        return pwd_context.hash(password)
+    except (ValueError, TypeError):
+        import hashlib
+        safe_pwd = hashlib.sha256(password.encode()).hexdigest()[:72]
+        return pwd_context.hash(safe_pwd)
 
 def get_user(db, phone: str):
     if phone in db:
