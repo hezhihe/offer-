@@ -72,11 +72,12 @@ def _fetch_user_by_phone(phone: str) -> Optional[Dict[str, Any]]:
 
 def get_user(phone: str) -> Optional[Dict[str, Any]]:
     """Get a user by phone number."""
+    fresh = _fetch_user_by_phone(phone)
+    if fresh:
+        return fresh
+
     _load_users_from_db()
-    cached = _users_db.get(phone)
-    if cached:
-        return cached
-    return _fetch_user_by_phone(phone)
+    return _users_db.get(phone)
 
 
 def user_exists(phone: str) -> bool:
