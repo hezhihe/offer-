@@ -104,7 +104,7 @@ export const useJobsStore = defineStore('jobs', () => {
         stats.value = {
           resume: serverData.resume || 0,
           interview: serverData.interview || 0,
-          browse: localData.browse || stats.value.browse || 0
+          browse: serverData.browse || localData.browse || stats.value.browse || 0
         }
         statsFetchedAt = Date.now()
       })
@@ -192,7 +192,48 @@ export const useJobsStore = defineStore('jobs', () => {
     if (job) {
       stats.value.browse++
       addBrowseHistory(job)
+      recordBrowseHistory(job.id)
       saveStats()
+    }
+  }
+
+  async function fetchBrowseHistory() {
+    try {
+      const localRecords = JSON.parse(localStorage.getItem('offer_compass_job_browse_history') || '[]')
+      if (Array.isArray(localRecords) && localRecords.length) {
+        await Promise.allSettled(localRecords.map(item => jobsApi.recordBrowse(item.id)))
+      }
+      const response = await jobsApi.getBrowseHistory()
+      if (Array.isArray(response.data) && response.data.length) {
+        browseHistory.value = response.data.map(item => ({
+          id: item.id,
+          company: item.company || '',
+          title: item.title || '',
+          date: item.date || '',
+          salary: item.salary || '',
+          category: item.category || '',
+          capital: item.capital || '',
+          education: item.education || '',
+          requirements: item.requirements || '',
+          womenFriendly: Boolean(item.womenFriendly),
+          url: item.url || '',
+          viewedAt: item.viewedAt || item.viewed_at || new Date().toISOString()
+        }))
+        localStorage.setItem('offer_compass_job_browse_history', JSON.stringify(browseHistory.value))
+      }
+    } catch {
+      // Keep local history as fallback for offline/guest usage.
+    }
+  }
+
+  async function recordBrowseHistory(jobId) {
+    if (!jobId) return
+    try {
+      await jobsApi.recordBrowse(jobId)
+      statsFetchedAt = 0
+      fetchStats()
+    } catch {
+      // Local history has already been updated; server sync can fail without blocking browsing.
     }
   }
 
@@ -271,6 +312,7 @@ export const useJobsStore = defineStore('jobs', () => {
     fetchTodayTip,
     switchTip,
     fetchStats,
+    fetchBrowseHistory,
     filterJobs,
     switchView,
     selectJob,

@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { authApi } from '../api/auth'
+import { normalizeToken } from '../api/client'
 
 export const useAuthStore = defineStore('auth', () => {
   const cachedUser = localStorage.getItem('user_profile')
   const user = ref(null)
-  const token = ref(localStorage.getItem('user_token') || null)
+  const token = ref(normalizeToken(localStorage.getItem('user_token')) || null)
   const authReady = ref(false)
   const loginError = ref('')
   const signupError = ref('')
@@ -34,7 +35,7 @@ export const useAuthStore = defineStore('auth', () => {
     loginError.value = ''
     try {
       const response = await authApi.login(phone, password)
-      token.value = response.data.access_token
+      token.value = normalizeToken(response.data.access_token)
       localStorage.setItem('user_token', token.value)
       setUser(response.data.user || null)
       if (!user.value) {

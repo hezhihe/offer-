@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { normalizeToken } from '../api/client'
 
 const routes = [
   { path: '/', name: 'Home', component: () => import('../views/Home.vue') },
@@ -15,7 +16,8 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('user_token')
+  const token = normalizeToken(localStorage.getItem('user_token'))
+  if (token) localStorage.setItem('user_token', token)
   const isLoggedIn = !!token && token !== 'guest-token'
   if (to.name !== 'Auth' && !isLoggedIn) {
     next({ name: 'Auth' })

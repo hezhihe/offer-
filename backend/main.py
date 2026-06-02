@@ -1996,6 +1996,53 @@ async def get_jobs(category: str = "all", education: str = "all", include_expire
     )
     return jobs
 
+@app.get("/api/jobs/browse-history")
+async def get_job_browse_history(current_user: Optional[User] = Depends(get_optional_user)):
+    if not current_user:
+        return []
+    try:
+        supabase = get_supabase()
+        result = supabase.table("job_browse_history") \
+            .select("job_id, viewed_at") \
+            .eq("user_phone", current_user.phone) \
+            .order("viewed_at", desc=True) \
+            .limit(20) \
+            .execute()
+
+        records = []
+        for item in result.data or []:
+            job = JobService.get_job_by_id(item.get("job_id"))
+            if not job:
+                continue
+            records.append({**job, "viewedAt": item.get("viewed_at")})
+        return records
+    except Exception as e:
+        logger.warning("查询岗位浏览历史失败: %s", e)
+        return []
+
+@app.post("/api/jobs/{id}/browse")
+async def record_job_browse(id: int, current_user: Optional[User] = Depends(get_optional_user)):
+    if not current_user:
+        return {"success": False}
+    job = JobService.get_job_by_id(id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    try:
+        supabase = get_supabase()
+        supabase.table("job_browse_history").upsert(
+            {
+                "user_phone": current_user.phone,
+                "job_id": id,
+                "viewed_at": datetime.utcnow().isoformat()
+            },
+            on_conflict="user_phone,job_id"
+        ).execute()
+        stats_cache.pop(current_user.phone, None)
+        return {"success": True}
+    except Exception as e:
+        logger.warning("保存岗位浏览历史失败: %s", e)
+        return {"success": False}
+
 @app.get("/api/jobs/{id}", response_model=Job)
 async def get_job_by_id(id: int):
     """
@@ -2076,10 +2123,16 @@ async def get_my_stats(current_user: Optional[User] = Depends(get_optional_user)
             .execute()
         interview_count = interview_result.count if interview_result.count else 0
 
+        browse_result = supabase.table("job_browse_history") \
+            .select("job_id", count="exact") \
+            .eq("user_phone", phone) \
+            .execute()
+        browse_count = browse_result.count if browse_result.count else 0
+
         data = {
             "resume": resume_count,
             "interview": interview_count,
-            "browse": 0
+            "browse": browse_count
         }
         stats_cache[phone] = {
             "data": data,
@@ -2089,7 +2142,7 @@ async def get_my_stats(current_user: Optional[User] = Depends(get_optional_user)
         return StatsResponse(
             resume=resume_count,
             interview=interview_count,
-            browse=0  # 浏览数由前端 localStorage 管理
+            browse=browse_count
         )
     except Exception as e:
         logger.warning(f"查询统计数据失败: {e}")

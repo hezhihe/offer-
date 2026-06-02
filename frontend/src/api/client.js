@@ -5,9 +5,19 @@ const client = axios.create({
   timeout: 90000
 })
 
+export function normalizeToken(rawToken) {
+  if (!rawToken) return ''
+  return String(rawToken)
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/^Bearer\s+/i, '')
+    .replace(/\s+/g, '')
+}
+
 client.interceptors.request.use(config => {
-  const token = localStorage.getItem('user_token')
+  const token = normalizeToken(localStorage.getItem('user_token'))
   if (token) {
+    localStorage.setItem('user_token', token)
     config.headers.Authorization = `Bearer ${token}`
   }
   return config

@@ -555,6 +555,7 @@ onMounted(async () => {
   if (isLoggedIn.value) {
     await authStore.fetchUser(true)
     jobsStore.fetchStats()
+    jobsStore.fetchBrowseHistory()
   }
 })
 
@@ -626,6 +627,7 @@ async function showUsageHistory(type = 'resume') {
       resumeStore.fetchHistory(),
       interviewStore.fetchHistory(),
       jobsStore.fetchStats(),
+      jobsStore.fetchBrowseHistory(),
       jobsStore.fetchJobs('all', 'all')
     ])
   } finally {

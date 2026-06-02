@@ -15,5 +15,11 @@ export const jobsApi = {
   },
   getStats() {
     return client.get('/stats/mine')
+  },
+  recordBrowse(jobId) {
+    return client.post(`/jobs/${jobId}/browse`)
+  },
+  getBrowseHistory() {
+    return client.get('/jobs/browse-history')
   }
 }
