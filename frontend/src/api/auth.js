@@ -21,7 +21,7 @@ export const authApi = {
   },
   uploadAvatar(file) {
     const formData = new FormData()
-    formData.append('avatar', file)
+    formData.append('avatar', file, file.name || 'avatar.jpg')
     return client.post('/auth/avatar-file', formData)
   }
 }

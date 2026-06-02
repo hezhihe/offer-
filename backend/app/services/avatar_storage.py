@@ -20,6 +20,13 @@ ALLOWED_AVATAR_TYPES = {
     "image/webp": ".webp",
 }
 
+EXTENSION_TO_AVATAR_TYPE = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
+
 
 def _storage_headers(content_type: str | None = None) -> dict:
     headers = {
@@ -57,7 +64,27 @@ def build_avatar_path(phone: str, filename: str, content_type: str) -> str:
     return f"{safe_phone}/avatar-{timestamp}{suffix}"
 
 
+def detect_avatar_content_type(filename: str, content_type: str | None, content: bytes) -> str:
+    normalized = (content_type or "").split(";")[0].strip().lower()
+    if normalized in ALLOWED_AVATAR_TYPES:
+        return normalized
+
+    suffix = Path(filename or "").suffix.lower()
+    if suffix in EXTENSION_TO_AVATAR_TYPE:
+        return EXTENSION_TO_AVATAR_TYPE[suffix]
+
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        return "image/webp"
+
+    return normalized
+
+
 def upload_avatar_file(phone: str, filename: str, content_type: str, content: bytes) -> Tuple[str, str]:
+    content_type = detect_avatar_content_type(filename, content_type, content)
     if content_type not in ALLOWED_AVATAR_TYPES:
         raise ValueError("Only JPG, PNG, and WebP avatar images are supported")
     if len(content) > MAX_AVATAR_BYTES:
