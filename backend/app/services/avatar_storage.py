@@ -29,9 +29,10 @@ EXTENSION_TO_AVATAR_TYPE = {
 
 
 def _storage_headers(content_type: str | None = None) -> dict:
+    service_key = (settings.SUPABASE_SERVICE_KEY or "").strip().strip("\"'")
     headers = {
-        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
-        "apikey": settings.SUPABASE_SERVICE_KEY,
+        "Authorization": f"Bearer {service_key}",
+        "apikey": service_key,
     }
     if content_type:
         headers["Content-Type"] = content_type
