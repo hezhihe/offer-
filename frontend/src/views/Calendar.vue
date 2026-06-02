@@ -39,6 +39,14 @@
       >
         {{ edu.label }}
       </button>
+      <label class="expired-toggle">
+        <input
+          type="checkbox"
+          :checked="jobsStore.showExpiredJobs"
+          @change="toggleExpiredJobs"
+        >
+        <span>查看已过期</span>
+      </label>
     </div>
 
     <div v-if="jobsStore.currentView === 'list'">
@@ -56,6 +64,9 @@
           <span class="badge badge-blue">{{ job.salary }}</span>
         </div>
         <div class="jli-meta">
+          <span v-if="deadlineLabel(job)" class="badge" :class="jobStatusClass(job)">
+            {{ deadlineLabel(job) }}
+          </span>
           <span class="jli-date">📅 {{ job.date }}</span>
           <span class="badge badge-amber">🏢 {{ job.capital }}</span>
           <span class="badge" style="background:var(--blue-light);color:var(--blue)">🎓 {{ job.education }}</span>
@@ -371,6 +382,29 @@ function filterByCategory(category) {
   jobsStore.filterJobs(category)
 }
 
+async function toggleExpiredJobs(event) {
+  await jobsStore.setShowExpiredJobs(event.target.checked)
+}
+
+function deadlineLabel(job) {
+  if (job?.status === 'closed') return '已下架'
+  if (job?.status === 'expired' || job?.isExpired) return '已过期'
+  if (typeof job?.daysUntilDeadline === 'number' && job.daysUntilDeadline >= 0 && job.daysUntilDeadline <= 7) {
+    return job.daysUntilDeadline === 0 ? '今日截止' : `${job.daysUntilDeadline}天后截止`
+  }
+  return ''
+}
+
+function jobStatusClass(job) {
+  if (job?.status === 'closed' || job?.status === 'expired' || job?.isExpired) {
+    return 'badge-muted'
+  }
+  if (typeof job?.daysUntilDeadline === 'number' && job.daysUntilDeadline >= 0 && job.daysUntilDeadline <= 7) {
+    return 'badge-urgent'
+  }
+  return 'badge-active'
+}
+
 onMounted(() => {
   jobsStore.fetchJobs()
 })
@@ -385,6 +419,42 @@ onMounted(() => {
   color: var(--medium);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.expired-toggle {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--medium);
+  font-size: 13px;
+  font-weight: 700;
+  background: #fff;
+  cursor: pointer;
+}
+
+.expired-toggle input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--blue);
+}
+
+.badge-muted {
+  background: #eef2f7;
+  color: #64748b;
+}
+
+.badge-urgent {
+  background: #fff1f2;
+  color: #e11d48;
+}
+
+.badge-active {
+  background: #ecfdf5;
+  color: #047857;
 }
 
 .selected-jobs-card {

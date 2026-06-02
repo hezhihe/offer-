@@ -137,6 +137,9 @@ class Job(BaseModel):
     womenFriendly: bool
     education: str = "不限"
     url: str
+    status: str = "active"
+    isExpired: bool = False
+    daysUntilDeadline: Optional[int] = None
 
 class TipResponse(BaseModel):
     content: str
@@ -1980,13 +1983,17 @@ async def get_interview_by_id(id: str, current_user: User = Depends(get_current_
         raise HTTPException(status_code=500, detail="查询面试历史详情失败")
 
 @app.get("/api/jobs", response_model=List[Job])
-async def get_jobs(category: str = "all", education: str = "all"):
+async def get_jobs(category: str = "all", education: str = "all", include_expired: bool = False):
     """
     获取岗位列表
     
     从 Supabase 数据库查询岗位数据，支持按分类筛选
     """
-    jobs = JobService.get_jobs(category=category, education=education)
+    jobs = JobService.get_jobs(
+        category=category,
+        education=education,
+        include_expired=include_expired,
+    )
     return jobs
 
 @app.get("/api/jobs/{id}", response_model=Job)

@@ -23,6 +23,7 @@ export const useJobsStore = defineStore('jobs', () => {
   const stats = ref({ resume: 0, interview: 0, browse: 0 })
   const browseHistory = ref(JSON.parse(localStorage.getItem('offer_compass_job_browse_history') || '[]'))
   const currentEducation = ref('all')
+  const showExpiredJobs = ref(false)
   let jobsPromise = null
   let tipsPromise = null
   let statsPromise = null
@@ -38,7 +39,7 @@ export const useJobsStore = defineStore('jobs', () => {
     }
 
     if (!jobsPromise) {
-      jobsPromise = jobsApi.getList('all', 'all')
+      jobsPromise = jobsApi.getList('all', 'all', showExpiredJobs.value)
         .then(response => {
           allJobs.value = response.data
         })
@@ -145,8 +146,19 @@ export const useJobsStore = defineStore('jobs', () => {
     jobs.value = allJobs.value.filter(job => {
       const categoryMatched = currentFilter.value === 'all' || job.category === currentFilter.value
       const educationMatched = canApplyByEducation(job.education, currentEducation.value)
-      return categoryMatched && educationMatched
+      const statusMatched = showExpiredJobs.value || !isInactiveJob(job)
+      return categoryMatched && educationMatched && statusMatched
     })
+  }
+
+  async function setShowExpiredJobs(value) {
+    showExpiredJobs.value = Boolean(value)
+    allJobs.value = []
+    await fetchJobs(currentFilter.value, currentEducation.value)
+  }
+
+  function isInactiveJob(job) {
+    return job?.status === 'expired' || job?.status === 'closed' || job?.isExpired
   }
 
   function canApplyByEducation(jobEducation = '不限', userEducation = 'all') {
@@ -191,6 +203,11 @@ export const useJobsStore = defineStore('jobs', () => {
       title: job.title || '',
       date: job.date || '',
       salary: job.salary || '',
+      category: job.category || '',
+      capital: job.capital || '',
+      education: job.education || '',
+      requirements: job.requirements || '',
+      womenFriendly: Boolean(job.womenFriendly),
       url: job.url || '',
       viewedAt: new Date().toISOString()
     }
@@ -247,7 +264,9 @@ export const useJobsStore = defineStore('jobs', () => {
     currentTipIndex,
     stats,
     browseHistory,
+    showExpiredJobs,
     fetchJobs,
+    setShowExpiredJobs,
     filterByEducation,
     fetchTodayTip,
     switchTip,

@@ -188,6 +188,49 @@
         </div>
 
         <div v-if="isUsageLoading || isUsageDetailLoading" class="usage-empty">正在加载记录...</div>
+        <div v-else-if="selectedUsageDetail?.category === 'resume'" class="usage-detail">
+          <button class="usage-back" @click="backToUsageList">返回记录列表</button>
+          <h4 class="usage-detail-title">{{ resumeStore.historyDetail?.job_title || selectedUsageDetail.title }}</h4>
+          <div class="usage-detail-time">{{ formatUsageTime(resumeStore.historyDetail?.created_at || selectedUsageDetail.time) }}</div>
+
+          <div class="usage-score-card">
+            <div class="usage-score" :style="{ background: resumeDetailMatchColor }">{{ resumeStore.historyDetail?.match_score ?? selectedUsageDetail.score ?? '--' }}%</div>
+            <div>
+              <strong>匹配度评估</strong>
+              <p>本次简历分析保存的完整结果</p>
+              <div class="usage-match-bar">
+                <div
+                  class="usage-match-bar-fill"
+                  :style="{ width: `${resumeStore.historyDetail?.match_score ?? selectedUsageDetail.score ?? 0}%`, background: resumeDetailMatchColor }"
+                ></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="usage-detail-section">
+            <strong>关键词</strong>
+            <div v-if="resumeDetailKeywords.length" class="usage-keywords">
+              <span
+                v-for="keyword in resumeDetailKeywords"
+                :key="keyword.word"
+                :class="{ matched: isResumeKeywordMatched(keyword) }"
+              >
+                {{ isResumeKeywordMatched(keyword) ? '✓' : '△' }} {{ keyword.word }}
+              </span>
+            </div>
+            <p v-else>暂无关键词记录</p>
+          </div>
+
+          <div class="usage-detail-section">
+            <strong>AI 重构简历</strong>
+            <p class="usage-preline">{{ resumeStore.historyDetail?.reconstructed_resume || '暂无重构简历内容' }}</p>
+          </div>
+
+          <div v-if="resumeStore.historyDetail?.original_resume" class="usage-detail-section">
+            <strong>原始简历</strong>
+            <p class="usage-preline">{{ resumeStore.historyDetail.original_resume }}</p>
+          </div>
+        </div>
         <div v-else-if="selectedUsageDetail?.category === 'interview'" class="usage-detail">
           <button class="usage-back" @click="backToUsageList">返回记录列表</button>
           <h4 class="usage-detail-title">{{ selectedUsageDetail.title }}</h4>
@@ -236,6 +279,49 @@
             </div>
           </div>
         </div>
+        <div v-else-if="selectedUsageDetail?.category === 'browse'" class="usage-detail">
+          <button class="usage-back" @click="backToUsageList">返回记录列表</button>
+          <h4 class="usage-detail-title">{{ selectedUsageDetail.title }}</h4>
+          <div class="usage-detail-time">{{ formatUsageTime(selectedUsageDetail.time) }}</div>
+
+          <div class="usage-detail-section">
+            <strong>公司</strong>
+            <p>{{ selectedUsageDetail.company || '暂无公司信息' }}</p>
+          </div>
+
+          <div class="usage-detail-section">
+            <strong>岗位信息</strong>
+            <p>{{ selectedUsageDetail.salary || '薪资未标注' }} · {{ selectedUsageDetail.date || '截止日期未标注' }}</p>
+          </div>
+
+          <div class="usage-detail-section">
+            <strong>企业规模</strong>
+            <p>{{ selectedUsageDetail.capital || '暂无企业规模信息' }}</p>
+          </div>
+
+          <div class="usage-detail-section">
+            <strong>学历要求</strong>
+            <p>{{ selectedUsageDetail.education || '暂无学历要求' }}</p>
+          </div>
+
+          <div class="usage-detail-section">
+            <strong>JD / 岗位要求</strong>
+            <p class="usage-preline">{{ selectedUsageDetail.requirements || '暂无岗位描述' }}</p>
+          </div>
+
+          <div v-if="selectedUsageDetail.womenFriendly" class="usage-detail-section">
+            <strong>岗位标签</strong>
+            <p>女性友好岗位</p>
+          </div>
+
+          <div v-if="selectedUsageDetail.url" class="usage-detail-section">
+            <strong>招聘公司网站</strong>
+            <p class="usage-url">{{ selectedUsageDetail.url }}</p>
+            <button class="usage-link-button" type="button" @click="openJobUrl(selectedUsageDetail.url)">
+              打开招聘公司网站
+            </button>
+          </div>
+        </div>
         <div v-else-if="filteredUsageRecords.length === 0" class="usage-empty">
           暂无使用记录。完成一次简历分析、模拟面试或浏览岗位后，这里会自动更新。
         </div>
@@ -244,13 +330,14 @@
             v-for="record in filteredUsageRecords"
             :key="record.key"
             class="usage-item"
-            :class="{ clickable: record.category === 'interview' }"
+            :class="{ clickable: isUsageRecordClickable(record) }"
             @click="openUsageRecord(record)"
           >
             <div class="usage-type">{{ record.type }}</div>
             <div class="usage-main">{{ record.title }}</div>
             <div class="usage-sub">{{ record.subtitle }}</div>
             <div class="usage-time">{{ formatUsageTime(record.time) }}</div>
+            <div v-if="record.category !== 'interview' && isUsageRecordClickable(record)" class="usage-action">{{ usageRecordActionText(record) }}</div>
             <div v-if="record.category === 'interview'" class="usage-action">查看面试总结</div>
           </div>
         </div>
@@ -325,6 +412,7 @@ const usageRecords = computed(() => {
     type: '简历分析',
     title: item.job_title || '简历分析记录',
     subtitle: item.match_score != null ? `匹配度 ${item.match_score}%` : '已生成简历分析结果',
+    score: item.match_score,
     time: item.created_at
   }))
 
@@ -338,15 +426,27 @@ const usageRecords = computed(() => {
     time: item.created_at
   }))
 
-  const browseRecords = jobsStore.browseHistory.map((item, index) => ({
+  const browseRecords = jobsStore.browseHistory.map((item, index) => {
+    const fullJob = getFullJob(item)
+    return {
     key: `browse-${item.id}-${item.viewedAt || index}`,
     id: item.id,
     category: 'browse',
     type: '浏览岗位',
-    title: item.title || '岗位记录',
-    subtitle: [item.company, item.salary, item.date].filter(Boolean).join(' · '),
+    title: fullJob.title || '岗位记录',
+    subtitle: [fullJob.company, fullJob.salary, fullJob.date].filter(Boolean).join(' · '),
+    company: fullJob.company || '',
+    salary: fullJob.salary || '',
+    date: fullJob.date || '',
+    jobCategory: fullJob.category || '',
+    capital: fullJob.capital || '',
+    education: fullJob.education || '',
+    requirements: fullJob.requirements || '',
+    womenFriendly: Boolean(fullJob.womenFriendly),
+    url: fullJob.url || '',
     time: item.viewedAt
-  }))
+    }
+  })
 
   return [...resumeRecords, ...interviewRecords, ...browseRecords]
     .sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))
@@ -390,6 +490,11 @@ const usageTabs = computed(() => [
   }
 ])
 
+function getFullJob(record) {
+  const fullJob = jobsStore.allJobs.find(job => String(job.id) === String(record.id))
+  return fullJob ? { ...record, ...fullJob } : record
+}
+
 const interviewHistoryDetails = computed(() => {
   const detail = interviewStore.historyDetail
   if (!detail) return []
@@ -403,6 +508,44 @@ const interviewHistoryDetails = computed(() => {
     feedback: feedbacks[index] || null
   }))
 })
+
+const resumeDetailKeywords = computed(() => {
+  const keywords = resumeStore.historyDetail?.keywords
+  if (Array.isArray(keywords)) {
+    return keywords
+      .map(item => typeof item === 'string' ? { word: item, matched: true } : item)
+      .filter(item => item?.word)
+  }
+  if (typeof keywords === 'string') {
+    try {
+      const parsed = JSON.parse(keywords)
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(item => typeof item === 'string' ? { word: item, matched: true } : item)
+          .filter(item => item?.word)
+      }
+    } catch {
+      return keywords
+        .split(/[,\uff0c\u3001\s]+/)
+        .map(item => item.trim())
+        .filter(Boolean)
+        .map(word => ({ word, matched: true }))
+    }
+  }
+  return []
+})
+
+const resumeDetailMatchColor = computed(() => {
+  const score = Number(resumeStore.historyDetail?.match_score ?? selectedUsageDetail.value?.score ?? 0)
+  if (score >= 85) return '#10B981'
+  if (score >= 70) return '#3B82F6'
+  if (score >= 50) return '#F59E0B'
+  return '#EF4444'
+})
+
+function isResumeKeywordMatched(keyword) {
+  return keyword?.matched !== false
+}
 
 watch(() => authStore.user?.avatar, () => {
   avatarLoadFailed.value = false
@@ -482,7 +625,8 @@ async function showUsageHistory(type = 'resume') {
     await Promise.all([
       resumeStore.fetchHistory(),
       interviewStore.fetchHistory(),
-      jobsStore.fetchStats()
+      jobsStore.fetchStats(),
+      jobsStore.fetchJobs('all', 'all')
     ])
   } finally {
     isUsageLoading.value = false
@@ -512,34 +656,76 @@ async function setUsageFilter(type) {
       isUsageLoading.value = false
     }
   }
+
+  if (type === 'browse' && jobsStore.allJobs.length === 0) {
+    isUsageLoading.value = true
+    try {
+      await jobsStore.fetchJobs('all', 'all')
+    } finally {
+      isUsageLoading.value = false
+    }
+  }
 }
 
 function closeUsageHistory() {
   showUsageModal.value = false
   selectedUsageDetail.value = null
   expandedAdviceIndexes.value = new Set()
+  resumeStore.clearHistoryDetail()
   interviewStore.clearHistoryDetail()
 }
 
 function backToUsageList() {
   selectedUsageDetail.value = null
   expandedAdviceIndexes.value = new Set()
+  resumeStore.clearHistoryDetail()
   interviewStore.clearHistoryDetail()
 }
 
 async function openUsageRecord(record) {
-  if (record.category !== 'interview') return
+  if (!isUsageRecordClickable(record)) return
   selectedUsageDetail.value = record
   expandedAdviceIndexes.value = new Set()
+
+  if (record.category === 'browse') {
+    resumeStore.clearHistoryDetail()
+    interviewStore.clearHistoryDetail()
+    return
+  }
+
   isUsageDetailLoading.value = true
   try {
-    await interviewStore.fetchHistoryDetail(record.id)
+    if (record.category === 'resume') {
+      interviewStore.clearHistoryDetail()
+      await resumeStore.fetchHistoryDetail(record.id)
+    } else if (record.category === 'interview') {
+      resumeStore.clearHistoryDetail()
+      await interviewStore.fetchHistoryDetail(record.id)
+    }
   } catch {
-    toast.show('面试总结加载失败')
+    toast.show('记录详情加载失败')
     selectedUsageDetail.value = null
   } finally {
     isUsageDetailLoading.value = false
   }
+}
+
+function isUsageRecordClickable(record) {
+  return ['resume', 'interview', 'browse'].includes(record.category)
+}
+
+function usageRecordActionText(record) {
+  const actionText = {
+    resume: '查看简历分析',
+    interview: '查看面试总结',
+    browse: '查看岗位信息'
+  }
+  return actionText[record.category] || '查看详情'
+}
+
+function openJobUrl(url) {
+  if (!url) return
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 function toggleQuestionAdvice(index) {
@@ -874,6 +1060,11 @@ async function logout() {
   cursor: pointer;
 }
 
+.usage-item.clickable:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.12);
+}
+
 .usage-item.clickable:active {
   transform: scale(0.99);
 }
@@ -960,6 +1151,97 @@ async function logout() {
   color: var(--medium);
   font-size: 14px;
   line-height: 1.7;
+}
+
+.usage-score-card {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+}
+
+.usage-score {
+  align-items: center;
+  background: var(--blue);
+  border-radius: 999px;
+  color: #fff;
+  display: flex;
+  flex: 0 0 56px;
+  font-size: 18px;
+  font-weight: 800;
+  height: 56px;
+  justify-content: center;
+}
+
+.usage-score-card strong {
+  color: var(--dark);
+  display: block;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.usage-score-card p {
+  color: var(--medium);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.usage-match-bar {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 8px;
+  margin-top: 10px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.usage-match-bar-fill {
+  border-radius: 999px;
+  height: 100%;
+  transition: width 0.25s ease;
+}
+
+.usage-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.usage-keywords span {
+  background: #fef3c7;
+  border-radius: 999px;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 10px;
+}
+
+.usage-keywords span.matched {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.usage-preline {
+  white-space: pre-wrap;
+}
+
+.usage-url {
+  word-break: break-all;
+}
+
+.usage-link-button {
+  background: var(--blue);
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 9px 14px;
 }
 
 .usage-qa {
