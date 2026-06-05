@@ -17,9 +17,11 @@ Results:
 - PASS: Railway `/api/jobs` returned `200`.
 - PASS: Railway `/docs` returned the FastAPI docs page.
 - PASS: Local frontend production build passed with `npm run build`.
-- PENDING REDEPLOY: Netlify config has been corrected to proxy `/api/*` to Railway. Redeploy Netlify before retesting `https://bejewelled-lamington-a93247.netlify.app/api/jobs`.
-- PENDING REDEPLOY: Railway needs the latest backend code before retesting `stats/mine`.
-- BLOCKED: `public.job_browse_history` is missing in Supabase, so job browse persistence returns `success=false`. Execute `backend/database/update_job_status_tracking.sql` in Supabase SQL Editor, then redeploy/retest.
+- PASS: Netlify `/api/jobs` returned `200` after redeploy.
+- PASS: Online login returned `200`.
+- PASS: Online `stats/mine` returned `resume=1`, `interview=1`, `browse=1` for the test account.
+- PASS: Online job browse returned `success=true`.
+- PASS: `public.job_browse_history` exists in Supabase and accepts backend upsert.
 - WATCH: Previous interview answer scoring returned `0` for a reasonable test answer. The endpoint works, but scoring quality should be reviewed before demo.
 - WATCH: PowerShell displayed Chinese API content as mojibake. Browser rendering still needs visual confirmation.
 
@@ -48,12 +50,12 @@ Results:
 - [x] Publish directory is `dist`.
 - [ ] Netlify build logs show `VITE_API_BASE_URL=/api`.
 - [ ] Refreshing nested routes does not 404 because SPA fallback is enabled.
-- [ ] Browser network requests go to `https://<netlify-site>/api/...`, not directly to Render or local addresses.
+- [x] Browser network requests go to `https://<netlify-site>/api/...`, not directly to Render or local addresses.
 
 ## Core User Flows
 
 - [ ] Register a new account with phone and password.
-- [ ] Log in with that account.
+- [x] Log in with that account.
 - [ ] Refresh the page and stay authenticated.
 - [ ] Visit Home and load tips or fallback content.
 - [ ] Visit Calendar and load job data.
@@ -72,17 +74,17 @@ Results:
 - [ ] No failed CORS preflight requests.
 - [ ] API timeout behavior is acceptable for AI calls.
 - [ ] Railway logs do not show missing env variables.
-- [ ] Supabase tables contain expected new records after resume and interview tests.
-- [ ] Supabase table `public.job_browse_history` exists and accepts upsert from the Railway backend.
+- [x] Supabase tables contain expected new records after resume and interview tests.
+- [x] Supabase table `public.job_browse_history` exists and accepts upsert from the Railway backend.
 - [ ] Mobile viewport can complete login, resume analysis, interview, calendar, and profile flows.
 
 ## Release Decision
 
 Release is acceptable only when all blocking items are checked:
 
-- [ ] One production backend only: Railway.
-- [ ] One frontend API path only: `/api`.
-- [ ] Authentication works online.
-- [ ] Resume and interview data persists to Supabase.
-- [ ] Job browse history table exists and browse persistence works.
+- [x] One production backend only: Railway.
+- [x] One frontend API path only: `/api`.
+- [x] Authentication works online.
+- [x] Resume and interview data persists to Supabase.
+- [x] Job browse history table exists and browse persistence works.
 - [ ] No secrets are exposed.
