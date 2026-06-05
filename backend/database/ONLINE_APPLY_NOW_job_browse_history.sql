@@ -1,7 +1,5 @@
--- Add lightweight lifecycle tracking for recruitment jobs.
--- active: visible by default
--- closed: removed/down from the source but kept for history
--- expired: optional explicit expired state; backend can also derive this from deadline
+-- Copy this whole file into Supabase SQL Editor and run it.
+-- Do not paste the file path into SQL Editor.
 
 ALTER TABLE public.jobs
 ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'

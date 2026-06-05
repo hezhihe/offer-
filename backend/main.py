@@ -611,6 +611,7 @@ async def analyze_resume(request: ResumeAnalysisRequest, current_user: Optional[
                 "keywords": keywords,
                 "reconstructed_resume": refactored_resume
             }).execute()
+            stats_cache.pop(current_user.phone, None)
         except Exception as e:
             logger.warning(f"保存简历历史失败: {e}")
     
@@ -1902,6 +1903,7 @@ async def complete_interview(request: InterviewCompleteRequest, current_user: Op
                     for index in range(len(interview["questions"]))
                 ]
                 supabase.table("interview_history").insert(interview_history_payload).execute()
+            stats_cache.pop(current_user.phone, None)
         except Exception as e:
             logger.warning(f"保存面试历史失败: {e}")
     
@@ -2123,11 +2125,15 @@ async def get_my_stats(current_user: Optional[User] = Depends(get_optional_user)
             .execute()
         interview_count = interview_result.count if interview_result.count else 0
 
-        browse_result = supabase.table("job_browse_history") \
-            .select("job_id", count="exact") \
-            .eq("user_phone", phone) \
-            .execute()
-        browse_count = browse_result.count if browse_result.count else 0
+        browse_count = 0
+        try:
+            browse_result = supabase.table("job_browse_history") \
+                .select("job_id", count="exact") \
+                .eq("user_phone", phone) \
+                .execute()
+            browse_count = browse_result.count if browse_result.count else 0
+        except Exception as browse_error:
+            logger.warning("查询岗位浏览统计失败: %s", browse_error)
 
         data = {
             "resume": resume_count,

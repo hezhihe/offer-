@@ -176,3 +176,12 @@ python -c "import main; print('backend import ok')"
 - 邮箱 / 短信找回密码还未接入，MVP 只支持登录后修改密码。
 - 招聘岗位数据是种子数据，不是实时招聘平台爬取数据。
 - 公网交付需要部署前端、后端，并配置 HTTPS 和生产环境变量。
+
+## Current Production Deployment
+
+- Frontend: Netlify
+- Backend: Railway, `https://offer-compass-api-production.up.railway.app`
+- Frontend API base: `/api`
+- Netlify proxy: `/api/*` -> `https://offer-compass-api-production.up.railway.app/api/:splat`
+- Render config is historical/fallback only. Do not use Render as the production backend for this MVP.
+- Before final acceptance, execute `backend/database/update_job_status_tracking.sql` in Supabase SQL Editor so `public.job_browse_history` exists.
