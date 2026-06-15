@@ -9,6 +9,7 @@ export const useResumeStore = defineStore('resume', () => {
   const isAnalyzing = ref(false)
   const history = ref([])
   const historyDetail = ref(null)
+  const jobVersions = ref(JSON.parse(localStorage.getItem('offer_compass_resume_versions') || '[]'))
   const isLoadingDetail = ref(false)
   let historyPromise = null
   let historyFetchedAt = 0
@@ -61,6 +62,28 @@ export const useResumeStore = defineStore('resume', () => {
     historyDetail.value = null
   }
 
+  function saveJobVersion(payload) {
+    const now = new Date().toISOString()
+    const jdText = String(payload?.jdContent || '').trim()
+    const resultData = payload?.result || {}
+    const jobTitle = jdText.split('\n').find(line => line.trim())?.trim().slice(0, 60) || '目标岗位'
+    const version = {
+      id: `resume-version-${Date.now()}`,
+      jobTitle,
+      jdSummary: jdText.slice(0, 140),
+      match_score: resultData.match_score || 0,
+      readiness: resultData.readiness_label || resultData.readiness_level || '',
+      suggestions: resultData.rewrite_templates || resultData.suggestions || [],
+      resumeContent: String(payload?.resumeContent || resultData.refactored_resume || '').slice(0, 3000),
+      refactoredResume: String(resultData.refactored_resume || '').slice(0, 3000),
+      analysisResult: resultData,
+      createdAt: now
+    }
+    jobVersions.value = [version, ...jobVersions.value].slice(0, 30)
+    localStorage.setItem('offer_compass_resume_versions', JSON.stringify(jobVersions.value))
+    return version
+  }
+
   function fillSampleData() {
     jdContent.value = `【机器人算法工程师】
 
@@ -106,5 +129,5 @@ export const useResumeStore = defineStore('resume', () => {
     result.value = null
   }
 
-  return { jdContent, experience, result, isAnalyzing, history, historyDetail, isLoadingDetail, analyze, fetchHistory, fetchHistoryDetail, clearHistoryDetail, fillSampleData, clear }
+  return { jdContent, experience, result, isAnalyzing, history, historyDetail, jobVersions, isLoadingDetail, analyze, fetchHistory, fetchHistoryDetail, clearHistoryDetail, saveJobVersion, fillSampleData, clear }
 })

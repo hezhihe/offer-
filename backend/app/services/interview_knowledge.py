@@ -36,15 +36,15 @@ BUSINESS_CHAIN_MARKERS = ["流量", "产品", "交付"]
 
 
 def build_interview_prompt(job_name: str, question: str, answer: str) -> str:
-    return f"""你是一位严格但友好的面试教练，正在分析「{job_name}」岗位候选人的文字回答。
+    return f"""你是一位严格但友好的真实面试教练，正在分析「{job_name}」岗位候选人的文字回答。
 
-请不要给分，不要输出 0-10 分，不要做抽象等级评价。
+产品目标：用户求职时间很紧，前台只展示短反馈。你必须给出能立刻修改回答的反馈，不要写长篇报告。
 
 内部判断框架：
-0. 岗位相关性：候选人回答是否围绕当前岗位和当前问题；如果明显答成其他岗位，必须直接指出答非所问。
-1. 价值感：候选人有没有证明自己解决过问题、创造过结果。
-2. 信任感：候选人有没有用真实场景、个人动作、数据或验证记录证明自己可靠。
-3. 匹配度：候选人有没有把经历和目标岗位/公司需求连接起来。
+0. 岗位相关性：是否围绕当前岗位和当前问题；明显跑题要直接指出。
+1. 价值感：是否证明自己解决过具体问题、创造过结果。
+2. 信任感：是否有真实场景、个人动作、数据、验证记录或异常处理。
+3. 匹配度：是否把经历和「{job_name}」岗位要求连接起来。
 
 面试问题：
 {question}
@@ -52,21 +52,26 @@ def build_interview_prompt(job_name: str, question: str, answer: str) -> str:
 候选人回答：
 {answer}
 
-请输出 JSON：
+请只输出 JSON：
 {{
-  "hit_points": ["回答亮点：具体做对了什么，不要空话"],
-  "missed_points": ["提升方向：具体缺什么证据或表达"],
-  "rewrite_advice": ["行动建议：下一版具体怎么补，必须可执行"],
-  "sample_rewrite": "给一版可直接参考的更好回答",
+  "quick_judgement": "本题结论，最多25个中文字，直接说核心问题",
+  "most_important_fix": "最该补的一点，最多35个中文字，必须具体",
+  "rewrite_example": "下一版回答示例，80-140个中文字，不要编造虚假数字",
+  "follow_up_question": "面试官可能追问的一句话，最多35个中文字",
+  "hit_points": ["回答里具体做对了什么，没有就给空数组"],
+  "missed_points": ["具体缺什么证据、细节或岗位连接"],
+  "rewrite_advice": ["下一版具体怎么补，必须可执行"],
+  "sample_rewrite": "可参考的更好回答，80-140个中文字",
   "summary": "一句话指出当前回答最大问题"
 }}
 
-要求：
-- 不要写分数。
-- 不要说“回答较好、逻辑清晰”这种空泛话。
-- 如果候选人把当前岗位答成其他岗位，hit_points 必须为空，missed_points 第一条必须写“答非所问”，summary 必须明确要求重新围绕当前岗位回答。
-- 每条反馈都要指向具体内容：场景、动作、结果、岗位连接。
-- 如果回答没有真实经历，要提示补一个真实或模拟场景，但不能编造数据。
+硬性要求：
+- 不要输出分数，不要输出等级。
+- 不要说“逻辑清晰、表达不错、建议使用STAR”这种模板话。
+- 每条反馈都必须基于候选人的原回答；原回答没有的信息不能假装存在。
+- 如果候选人没有真实经历，允许给“模拟表达框架”，但不能编造公司名、项目名、数据。
+- 如果答非所问：quick_judgement 写“答非所问，需要重答”，hit_points 为空，most_important_fix 指出要回到当前问题。
+- 前四个字段是前台默认展示内容，必须短、狠、可执行。
 - 只输出 JSON，不要输出其他内容。"""
 
 
@@ -243,6 +248,43 @@ def _question_focus(question: str, job_type: str) -> Dict[str, List[str] | str]:
     }
 
 
+def _first_text(items: List[str], default: str, max_len: int = 42) -> str:
+    for item in items:
+        text = str(item).strip()
+        if text:
+            return text[:max_len]
+    return default
+
+
+def _build_quick_feedback_fields(hit_points: List[str], missed_points: List[str], rewrite_advice: List[str], sample_rewrite: str, question: str, answer: str) -> Dict[str, str]:
+    text = answer.strip()
+    if not text or len(text) < 8:
+        return {
+            "quick_judgement": "回答无效，需要重答",
+            "most_important_fix": "先正面回答问题，再补场景和动作",
+            "rewrite_example": "下一版先正面回答问题，再补具体场景、个人动作和结果。",
+            "follow_up_question": "你能举一个真实例子吗？",
+        }
+
+    quick_judgement = _first_text(missed_points, "方向基本相关，但证据不够", 25)
+    most_important_fix = _first_text(missed_points, "补清楚你的个人动作和验证结果", 35)
+    rewrite_source = sample_rewrite or _first_text(rewrite_advice, "按场景、动作、结果重写这一题", 140)
+    follow_up = "这个结果你是怎么验证的？"
+
+    if hit_points and not missed_points:
+        quick_judgement = "方向可用，继续补强证据"
+    if any(word in most_important_fix for word in ["答非所问", "跑题"]):
+        quick_judgement = "答非所问，需要重答"
+        follow_up = "请重新围绕本题回答。"
+
+    return {
+        "quick_judgement": quick_judgement,
+        "most_important_fix": most_important_fix,
+        "rewrite_example": str(rewrite_source).strip()[:160] or "下一版先正面回答问题，再补具体场景、个人动作和结果。",
+        "follow_up_question": follow_up,
+    }
+
+
 def build_rule_based_interview_feedback(question: str, answer: str, job_type: str, assessment: Dict) -> Dict:
     """Build concrete qualitative fallback feedback without exposing scores."""
     focus = _question_focus(question, job_type)
@@ -266,19 +308,29 @@ def build_rule_based_interview_feedback(question: str, answer: str, job_type: st
 
     sample_rewrite = str(focus["sample"])
 
+    quick_fields = _build_quick_feedback_fields(
+        hit_points,
+        missed_points,
+        rewrite_advice,
+        sample_rewrite,
+        question,
+        text,
+    )
+
     return {
         "score": int(assessment.get("total", 0)),
         "is_relevant": assessment.get("relevance", 0) > 0,
         "strict_reason": "定性反馈分析",
         "dimensions": [
-            {"label": "回答亮点", "score": 0, "comment": "；".join(hit_points)},
-            {"label": "提升方向", "score": 0, "comment": "；".join(missed_points)},
-            {"label": "行动建议", "score": 0, "comment": "；".join(rewrite_advice)},
+            {"label": "回答亮点", "score": 0, "comment": "?".join(hit_points)},
+            {"label": "提升方向", "score": 0, "comment": "?".join(missed_points)},
+            {"label": "行动建议", "score": 0, "comment": "?".join(rewrite_advice)},
         ],
-        "suggestion": "不要停留在岗位理解，要用具体场景、个人动作和结果证明你能创造价值。",
+        "suggestion": quick_fields["most_important_fix"],
         "hit_points": hit_points,
         "missed_points": missed_points,
         "rewrite_advice": rewrite_advice,
         "sample_rewrite": sample_rewrite,
-        "summary": "当前反馈不看分数，重点看你是否证明了价值感、信任感和岗位匹配度。",
+        "summary": quick_fields["quick_judgement"],
+        **quick_fields,
     }

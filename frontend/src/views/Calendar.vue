@@ -1,3 +1,9 @@
+<!--
+页面职责：招聘日历与岗位投递总控。
+负责：岗位筛选、岗位详情、投递阶段更新、从投递记录进入模拟面试。
+边界：投递进展表展示已拆到 ApplicationBoard.vue；该页面保留业务动作，不负责投递表内部 UI。
+-->
+
 <template>
   <div class="page active">
     <h1 class="section-title" style="margin-bottom:16px">
@@ -49,6 +55,13 @@
       </label>
     </div>
 
+    <ApplicationBoard
+      v-if="jobsStore.currentView === 'list'"
+      :records="jobsStore.applicationRecords"
+      :stages="jobsStore.applicationStages"
+      @update-stage="updateApplication"
+      @start-interview="startInterviewFromRecord"
+    />
     <div v-if="jobsStore.currentView === 'list'">
       <div
         v-for="job in jobsStore.jobs"
@@ -188,9 +201,12 @@
 import { ref, computed, nextTick, onMounted } from 'vue'
 import { useJobsStore } from '../stores/jobs'
 import { useToast } from '../composables/useToast'
+import { useRouter } from 'vue-router'
+import ApplicationBoard from '../components/ApplicationBoard.vue'
 
 const jobsStore = useJobsStore()
 const toast = useToast()
+const router = useRouter()
 const currentYear = ref(new Date().getFullYear())
 const currentMonth = ref(new Date().getMonth() + 1)
 const selectedDate = ref(null)
@@ -367,12 +383,64 @@ function closeDetail() {
 function openJobUrl() {
   const url = selectedJob.value?.url
   if (!url) {
-    toast.show('No detail link for this job')
+    toast.show('暂无岗位详情链接')
     return
   }
 
   window.location.href = url
 }
+
+function addSelectedJobToApplications() {
+  if (!selectedJob.value) return
+  const existed = jobsStore.getApplicationRecord(selectedJob.value.id)
+  jobsStore.addApplicationRecord(selectedJob.value)
+  toast.show(existed ? '这个岗位已在投递跟进表中' : '已加入投递跟进表')
+}
+
+function startInterviewFromSelectedJob() {
+  if (!selectedJob.value) return
+  const record = jobsStore.addApplicationRecord(selectedJob.value)
+  startInterviewWithContext(selectedJob.value, record)
+}
+
+function startInterviewFromRecord(record) {
+  const job = jobsStore.allJobs.find(item => String(item.id) === String(record.jobId)) || record
+  startInterviewWithContext(job, record)
+}
+
+function startInterviewWithContext(job, record = null) {
+  const context = buildInterviewContext(job, record)
+  sessionStorage.setItem('offer_compass_interview_context', JSON.stringify(context))
+  sessionStorage.setItem('resume_interview_context', JSON.stringify(context))
+  showDetail.value = false
+  router.push({ path: '/interview', query: { from: 'job' } })
+}
+
+function buildInterviewContext(job, record = null) {
+  return {
+    source: job?.source || record?.source || 'job_calendar',
+    jobId: record?.jobId || job?.id || '',
+    applicationRecordId: record?.id || '',
+    resumeVersionId: record?.resumeVersionId || '',
+    interviewId: record?.interviewId || '',
+    reviewId: record?.reviewId || '',
+    job_type: job?.category || record?.category || 'pm',
+    job_title: job?.title || record?.title || '目标岗位',
+    company: job?.company || record?.company || '',
+    jd_content: job?.requirements || record?.requirements || '',
+    requirements: job?.requirements || record?.requirements || '',
+    salary: job?.salary || record?.salary || '',
+    deadline: record?.deadline || job?.deadline || job?.date || record?.date || '',
+    nextAction: record?.nextAction || '',
+    application_stage: record?.stage || 'saved',
+    job_url: job?.url || record?.url || ''
+  }
+}
+
+function updateApplication(record, stage) {
+  jobsStore.updateApplicationStage(record.id, stage)
+}
+
 
 function filterByEducation(edu) {
   jobsStore.filterByEducation(edu)
@@ -522,4 +590,8 @@ onMounted(() => {
   line-height: 1.65;
   white-space: pre-line;
 }
+
+.detail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.detail-actions .btn { margin: 0 !important; }
 </style>
+

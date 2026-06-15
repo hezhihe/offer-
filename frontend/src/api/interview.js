@@ -1,8 +1,8 @@
 import client from './client'
 
 export const interviewApi = {
-  start(jobType) {
-    return client.post('/interview/start', { job_type: jobType })
+  start(jobType, context = null) {
+    return client.post('/interview/start', { job_type: jobType, ...(context || {}) })
   },
   answer(interviewId, questionIndex, answer) {
     return client.post('/interview/answer', { interview_id: interviewId, question_index: questionIndex, answer })

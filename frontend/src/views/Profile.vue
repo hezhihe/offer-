@@ -1,3 +1,9 @@
+<!--
+页面职责：个人页总控。
+负责：账号信息、使用记录、反馈、密码、求职诊断档案数据计算和跳转动作。
+边界：求职诊断档案展示已拆到 CareerDiagnosisCard.vue；不要把诊断卡 UI 再堆回本页面。
+-->
+
 <template>
   <div class="page active">
     <div class="profile-header">
@@ -37,6 +43,17 @@
       </button>
     </div>
 
+    <CareerDiagnosisCard
+      v-if="isLoggedIn"
+      :stats="diagnosisStats"
+      :has-data="hasDiagnosisData"
+      :weakness-tags="diagnosisWeaknessTags"
+      :resume-clues="diagnosisResumeClues"
+      :next-actions="diagnosisNextActions"
+      @open-stat="openDiagnosisStat"
+      @optimize-resume="goToResumeOptimization"
+      @view-progress="goToApplicationProgress"
+    />
     <div v-if="isLoggedIn" class="card" style="margin-top:16px">
       <div class="menu-list">
         <div class="menu-item" @click="showUsageHistory('all')">
@@ -371,6 +388,7 @@ import { useInterviewStore } from '../stores/interview'
 import { useToast } from '../composables/useToast'
 import { feedbackApi } from '../api/feedback'
 import defaultAvatar from '../assets/default-avatar.png'
+import CareerDiagnosisCard from '../components/CareerDiagnosisCard.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -399,6 +417,95 @@ const showOldPassword = ref(false)
 const showNewPassword = ref(false)
 const showConfirmPassword = ref(false)
 const passwordForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' })
+
+const latestResumeVersions = computed(() => resumeStore.jobVersions.slice(0, 3))
+
+const bestResumeMatch = computed(() => {
+  const scores = resumeStore.jobVersions.map(item => Number(item.match_score || 0))
+  return scores.length ? Math.max(...scores) : 0
+})
+
+const activeApplicationCount = computed(() => {
+  return jobsStore.applicationRecords.filter(item => !['offer', 'rejected'].includes(item.stage)).length
+})
+
+function readLocalJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+const storedResumeVersions = computed(() => {
+  return resumeStore.jobVersions.length
+    ? resumeStore.jobVersions
+    : readLocalJson('offer_compass_resume_versions', [])
+})
+
+const storedApplicationRecords = computed(() => {
+  return jobsStore.applicationRecords.length
+    ? jobsStore.applicationRecords
+    : readLocalJson('offer_compass_application_records', [])
+})
+
+const storedInterviewReviews = computed(() => readLocalJson('offer_compass_interview_reviews', []))
+const storedProfileSignals = computed(() => readLocalJson('offer_compass_user_profile_signals', {}))
+
+const diagnosisStats = computed(() => ({
+  resumeVersions: storedResumeVersions.value.length,
+  applications: storedApplicationRecords.value.length,
+  interviewReviews: storedInterviewReviews.value.length
+}))
+
+const diagnosisWeaknessTags = computed(() => {
+  const tags = [
+    ...(storedProfileSignals.value.weaknessTags || []),
+    ...(storedProfileSignals.value.latestInterviewReview?.weakness_tags || [])
+  ]
+  return uniqueTextList(tags).slice(0, 6)
+})
+
+const diagnosisResumeClues = computed(() => {
+  const clues = [
+    ...(storedProfileSignals.value.resumeRewriteClues || []),
+    ...(storedProfileSignals.value.latestInterviewReview?.resume_rewrite_clues || [])
+  ]
+  return uniqueTextList(clues).slice(0, 3)
+})
+
+const diagnosisNextActions = computed(() => {
+  const latestReview = storedProfileSignals.value.latestInterviewReview || storedInterviewReviews.value[0] || {}
+  const actions = uniqueTextList([
+    ...(storedProfileSignals.value.nextActions || []),
+    ...(latestReview.next_actions || []),
+    ...buildFallbackDiagnosisActions()
+  ])
+  return actions.slice(0, 3)
+})
+
+const hasDiagnosisData = computed(() => {
+  return diagnosisWeaknessTags.value.length || diagnosisResumeClues.value.length || storedInterviewReviews.value.length
+})
+
+function uniqueTextList(items) {
+  const result = []
+  ;(Array.isArray(items) ? items : []).forEach(item => {
+    const value = String(item || '').trim()
+    if (value && !result.includes(value)) result.push(value)
+  })
+  return result
+}
+
+function buildFallbackDiagnosisActions() {
+  const actions = []
+  if (storedResumeVersions.value.length === 0) actions.push('先保存一版针对具体 JD 的简历分析结果。')
+  if (storedApplicationRecords.value.length === 0) actions.push('把目标岗位加入投递进展，开始记录推进状态。')
+  if (storedInterviewReviews.value.length === 0) actions.push('基于目标 JD 完成一轮模拟面试，沉淀可复盘问题。')
+  if (activeApplicationCount.value > 0) actions.push('优先推进进行中的投递记录，补齐下一次面试要用的项目证据。')
+  return actions
+}
 const displayAvatar = computed(() => {
   if (avatarLoadFailed.value) return null
   return authStore.user?.avatar || null
@@ -728,6 +835,37 @@ function usageRecordActionText(record) {
 function openJobUrl(url) {
   if (!url) return
   window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+function goToResumeOptimization() {
+  const latestReview = storedProfileSignals.value.latestInterviewReview || storedInterviewReviews.value[0] || {}
+  const context = {
+    source: 'career_diagnosis',
+    createdAt: new Date().toISOString(),
+    weaknessTags: diagnosisWeaknessTags.value,
+    resumeRewriteClues: diagnosisResumeClues.value,
+    nextActions: diagnosisNextActions.value,
+    latestInterviewContext: storedProfileSignals.value.latestInterviewContext || latestReview.interview_context || {},
+    latestInterviewReview: latestReview
+  }
+  sessionStorage.setItem('offer_compass_resume_diagnosis_context', JSON.stringify(context))
+  router.push('/resume?from=diagnosis')
+}
+
+function goToApplicationProgress() {
+  router.push('/calendar')
+}
+
+function openDiagnosisStat(type) {
+  if (type === 'resume') {
+    showUsageHistory('resume')
+    return
+  }
+  if (type === 'interview') {
+    showUsageHistory('interview')
+    return
+  }
+  goToApplicationProgress()
 }
 
 function toggleQuestionAdvice(index) {
@@ -1308,4 +1446,68 @@ async function logout() {
   line-height: 1.7;
   padding: 18px 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+.career-version-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.career-version-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e8eef7;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.career-version-item strong {
+  display: block;
+  color: var(--dark);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.career-version-item span {
+  display: block;
+  margin-top: 3px;
+  color: var(--medium);
+  font-size: 11px;
+}
+
+.career-version-item em {
+  flex-shrink: 0;
+  color: var(--blue);
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 900;
+}
+
 </style>
+
+
+
+
+
+

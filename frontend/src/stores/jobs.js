@@ -2,6 +2,62 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { jobsApi } from '../api/jobs'
 
+
+function readApplicationRecords() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('offer_compass_application_records') || '[]')
+    return Array.isArray(raw) ? raw.map(normalizeApplicationRecord) : []
+  } catch {
+    return []
+  }
+}
+
+function normalizeApplicationRecord(record = {}) {
+  const now = new Date().toISOString()
+  const jobId = record.jobId ?? record.id ?? ''
+  const deadline = record.deadline || record.date || ''
+  return {
+    id: record.id || `app-${jobId || Date.now()}`,
+    jobId,
+    resumeVersionId: record.resumeVersionId || '',
+    interviewId: record.interviewId || '',
+    reviewId: record.reviewId || '',
+    company: record.company || '自定义 JD',
+    title: record.title || record.jobTitle || '目标岗位',
+    salary: record.salary || '',
+    date: record.date || deadline,
+    deadline,
+    category: record.category || 'pm',
+    capital: record.capital || '',
+    education: record.education || '',
+    requirements: record.requirements || record.jdContent || record.jd_content || '',
+    resumeContent: record.resumeContent || record.resume_content || '',
+    analysisResult: record.analysisResult || record.analysis_result || null,
+    womenFriendly: Boolean(record.womenFriendly),
+    url: record.url || record.jobUrl || '',
+    source: record.source || '岗位库',
+    status: record.status || '',
+    daysUntilDeadline: typeof record.daysUntilDeadline === 'number' ? record.daysUntilDeadline : null,
+    stage: record.stage || 'saved',
+    nextAction: record.nextAction || defaultNextAction(record.stage || 'saved'),
+    note: record.note || '',
+    createdAt: record.createdAt || now,
+    updatedAt: record.updatedAt || now
+  }
+}
+
+function defaultNextAction(stage = 'saved') {
+  const actions = {
+    saved: '完善简历版本，确认是否投递',
+    applied: '等待笔试或 HR 反馈',
+    written: '准备笔试复盘和面试素材',
+    interview: '完成模拟面试并记录复盘',
+    offer: '复盘成功经验，准备下一轮选择',
+    rejected: '复盘失败原因，更新简历和面试回答'
+  }
+  return actions[stage] || '确认下一步动作'
+}
+
 export const useJobsStore = defineStore('jobs', () => {
   const jobs = ref([])
   const allJobs = ref([])
@@ -22,6 +78,15 @@ export const useJobsStore = defineStore('jobs', () => {
   const currentTipIndex = ref(0)
   const stats = ref({ resume: 0, interview: 0, browse: 0 })
   const browseHistory = ref(JSON.parse(localStorage.getItem('offer_compass_job_browse_history') || '[]'))
+  const applicationRecords = ref(readApplicationRecords())
+  const applicationStages = [
+    { key: 'saved', label: '已加入' },
+    { key: 'applied', label: '已投递' },
+    { key: 'written', label: '笔试' },
+    { key: 'interview', label: '面试' },
+    { key: 'offer', label: 'Offer' },
+    { key: 'rejected', label: '未通过' }
+  ]
   const currentEducation = ref('all')
   const showExpiredJobs = ref(false)
   let jobsPromise = null
@@ -263,6 +328,56 @@ export const useJobsStore = defineStore('jobs', () => {
     localStorage.setItem('offer_compass_stats', JSON.stringify(stats.value))
   }
 
+  function saveApplicationRecords() {
+    applicationRecords.value = applicationRecords.value.map(normalizeApplicationRecord)
+    localStorage.setItem('offer_compass_application_records', JSON.stringify(applicationRecords.value))
+  }
+
+  function getApplicationRecord(jobId) {
+    return applicationRecords.value.find(item => String(item.jobId) === String(jobId)) || null
+  }
+
+  function addApplicationRecord(job) {
+    if (!job) return null
+    const now = new Date().toISOString()
+    const jobId = job.jobId || job.id || `custom-${Date.now()}`
+    const existing = getApplicationRecord(jobId)
+    const incoming = normalizeApplicationRecord({
+      ...job,
+      id: existing?.id || `app-${jobId}-${Date.now()}`,
+      jobId,
+      resumeVersionId: job.resumeVersionId || existing?.resumeVersionId || '',
+      interviewId: job.interviewId || existing?.interviewId || '',
+      reviewId: job.reviewId || existing?.reviewId || '',
+      deadline: job.deadline || job.date || existing?.deadline || '',
+      nextAction: job.nextAction || existing?.nextAction || defaultNextAction(existing?.stage || job.stage || 'saved'),
+      createdAt: existing?.createdAt || now,
+      updatedAt: now
+    })
+    if (existing) {
+      Object.assign(existing, { ...incoming, stage: existing.stage || incoming.stage })
+      saveApplicationRecords()
+      return existing
+    }
+    applicationRecords.value = [incoming, ...applicationRecords.value]
+    saveApplicationRecords()
+    return incoming
+  }
+
+  function updateApplicationStage(recordId, stage) {
+    const record = applicationRecords.value.find(item => item.id === recordId)
+    if (!record) return
+    record.stage = stage
+    record.nextAction = defaultNextAction(stage)
+    record.updatedAt = new Date().toISOString()
+    saveApplicationRecords()
+  }
+
+  function removeApplicationRecord(recordId) {
+    applicationRecords.value = applicationRecords.value.filter(item => item.id !== recordId)
+    saveApplicationRecords()
+  }
+
   function getMockJobs() {
     return [
       { id: 1, company: '优必选科技', title: '机器人算法工程师', date: '2026-06-15', salary: '15K-25K', category: 'robot', capital: '上市机器人企业', education: '硕士及以上', requirements: '硕士及以上，机器人/自动化相关专业，熟悉ROS、运动控制算法', womenFriendly: false, url: 'https://www.ubtrobot.com' },
@@ -305,6 +420,8 @@ export const useJobsStore = defineStore('jobs', () => {
     currentTipIndex,
     stats,
     browseHistory,
+    applicationRecords,
+    applicationStages,
     showExpiredJobs,
     fetchJobs,
     setShowExpiredJobs,
@@ -316,6 +433,14 @@ export const useJobsStore = defineStore('jobs', () => {
     filterJobs,
     switchView,
     selectJob,
+    addApplicationRecord,
+    updateApplicationStage,
+    removeApplicationRecord,
+    getApplicationRecord,
+    saveApplicationRecords,
     saveStats
   }
 })
+
+
+

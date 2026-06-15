@@ -1,10 +1,16 @@
+<!--
+页面职责：模拟面试页总控。
+负责：面试上下文、开始面试、提交回答、生成复盘、查看面试历史。
+边界：后续应继续拆复盘展示组件；当前不要在本页面新增无关业务模块。
+-->
+
 <template>
   <div class="page active">
     <div v-if="!interviewStore.questions.length" class="interview-start">
       <h2>🎯 面试模拟</h2>
       <p>选择您的目标岗位，开始AI面试练习</p>
       <div v-if="interviewStore.isStarting" class="starting-hint">
-        <span class="loading-dots"><span></span><span></span><span></span></span>
+        <LoadingDots />
         正在准备高参考价值题组
       </div>
       <div class="job-grid">
@@ -57,6 +63,45 @@
       <h2 class="summary-title">面试总结</h2>
       <div class="summary-job">{{ interviewStore.jobTypeNames[interviewStore.jobType] || '目标岗位' }}</div>
 
+      <div v-if="structuredReview" class="coach-review-card">
+        <div class="summary-section-head">
+          <div>
+            <h3>纠错教练复盘</h3>
+            <p>把这轮面试结果转成能力短板和简历修改线索</p>
+          </div>
+        </div>
+
+        <div class="coach-main-problem">
+          <span>最大问题</span>
+          <strong>{{ structuredReview.main_problem }}</strong>
+        </div>
+
+        <div class="weakness-tags">
+          <span v-for="tag in structuredReview.weakness_tags" :key="tag">{{ tag }}</span>
+        </div>
+
+        <div class="coach-review-grid">
+          <div class="coach-review-block">
+            <h4>命中点</h4>
+            <ul>
+              <li v-for="item in structuredReview.hit_points" :key="item">{{ item }}</li>
+            </ul>
+          </div>
+          <div class="coach-review-block">
+            <h4>可补进简历</h4>
+            <ul>
+              <li v-for="item in structuredReview.resume_rewrite_clues" :key="item">{{ item }}</li>
+            </ul>
+          </div>
+          <div class="coach-review-block full">
+            <h4>下一步行动</h4>
+            <ul>
+              <li v-for="item in structuredReview.next_actions" :key="item">{{ item }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       <div class="summary-advice-card">
         <div class="summary-section-head">
           <div>
@@ -91,24 +136,26 @@
             <div v-if="!detail.feedback" class="qa-advice-empty">
               这道题暂无可展开的问题分析。后端返回完整单题反馈后，这里会展示回答亮点、提升方向和行动建议。
             </div>
-            <template v-else>
-              <div
-                v-for="(section, sectionIndex) in feedbackSections(detail.feedback)"
-                :key="section.title"
-                class="qa-advice-block"
-              >
-                <strong>{{ section.title }}</strong>
-                <ul>
-                  <li v-for="(point, pointIndex) in section.points" :key="`${sectionIndex}-${pointIndex}`">
-                    {{ point }}
-                  </li>
-                </ul>
-              </div>
-              <div class="qa-advice-summary">
-                <strong>改进建议</strong>
-                <p>{{ detail.feedback.suggestion || detail.feedback.summary || '建议围绕问题补充具体场景、个人动作、量化结果和下一步修改方案。' }}</p>
-              </div>
-            </template>
+              <template v-else>
+                <div class="qa-quick-grid">
+                  <div v-for="item in quickFeedbackItems(detail.feedback)" :key="item.label" class="qa-quick-item">
+                    <span>{{ item.label }}</span>
+                    <p>{{ item.value }}</p>
+                  </div>
+                </div>
+                <div
+                  v-for="(section, sectionIndex) in feedbackSections(detail.feedback)"
+                  :key="section.title"
+                  class="qa-advice-block"
+                >
+                  <strong>{{ section.title }}</strong>
+                  <ul>
+                    <li v-for="(point, pointIndex) in section.points" :key="`${sectionIndex}-${pointIndex}`">
+                      {{ point }}
+                    </li>
+                  </ul>
+                </div>
+              </template>
           </div>
         </div>
       </div>
@@ -118,6 +165,16 @@
     </div>
 
     <div v-else>
+      <div v-if="activeInterviewContext" class="interview-context-card">
+        <div class="context-kicker">JD 模拟面试</div>
+        <div class="context-title">{{ activeInterviewContext.company ? activeInterviewContext.company + ' · ' : '' }}{{ activeInterviewContext.job_title || '目标岗位' }}</div>
+        <div class="context-meta">
+          <span v-if="activeInterviewContext.salary">{{ activeInterviewContext.salary }}</span>
+          <span v-if="activeInterviewContext.deadline">截止 {{ activeInterviewContext.deadline }}</span>
+          <span v-if="activeInterviewContext.application_stage">{{ stageLabel(activeInterviewContext.application_stage) }}</span>
+        </div>
+        <p v-if="contextRequirementSummary" class="context-summary">{{ contextRequirementSummary }}</p>
+      </div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
         <div>
           <h3 style="font-size:15px;font-weight:700">{{ interviewStore.jobTypeNames[interviewStore.jobType] }}</h3>
@@ -125,6 +182,7 @@
         </div>
         <button class="btn btn-secondary btn-sm" @click="interviewStore.reset()">退出</button>
       </div>
+      <div v-if="personalizedHint || interviewStore.sourceContext" class="personalized-hint in-chat">{{ personalizedHint || '正在围绕当前 JD 进行追问和复盘' }}</div>
       <div class="progress-bar">
         <div class="progress-bar-fill" :style="{ width: (interviewStore.currentQuestionIndex / 5 * 100) + '%' }"></div>
       </div>
@@ -139,20 +197,28 @@
               {{ turn.answer }}
             </div>
             <div v-if="turn.feedback" class="micro-feedback">
-              <div class="mf-item" v-for="(dim, idx) in turn.feedback.dimensions" :key="idx">
-                <div class="mf-title">
-                  {{ normalizeFeedbackTitle(dim.label) }}
+              <div class="mf-kicker">本题快速反馈</div>
+              <div class="mf-quick-grid">
+                <div
+                  v-for="item in quickFeedbackItems(turn.feedback)"
+                  :key="item.label"
+                  class="mf-quick-item"
+                >
+                  <span>{{ item.label }}</span>
+                  <p>{{ item.value }}</p>
                 </div>
-                <ul class="mf-list">
-                  <li v-for="(point, pointIndex) in splitFeedbackComment(dim.comment)" :key="pointIndex">
-                    {{ point }}
-                  </li>
-                </ul>
               </div>
-              <div class="mf-summary">
-                <strong>改进建议</strong>
-                <p>{{ turn.feedback.suggestion }}</p>
-              </div>
+              <details class="mf-detail">
+                <summary>展开详细分析</summary>
+                <div class="mf-item" v-for="(section, idx) in feedbackSections(turn.feedback)" :key="idx">
+                  <div class="mf-title">{{ section.title }}</div>
+                  <ul class="mf-list">
+                    <li v-for="(point, pointIndex) in section.points" :key="pointIndex">
+                      {{ point }}
+                    </li>
+                  </ul>
+                </div>
+              </details>
             </div>
           </template>
 
@@ -161,9 +227,7 @@
           </div>
 
           <div v-if="interviewStore.isAnswering" class="chat-bubble chat-ai">
-            <span class="loading-dots">
-              <span></span><span></span><span></span>
-            </span>
+            <LoadingDots />
           </div>
         </div>
 
@@ -199,7 +263,7 @@
         <button class="modal-close" @click="closeHistoryDetail">×</button>
 
         <div v-if="interviewStore.isLoadingDetail" class="empty-state">
-          <div class="es-icon">...</div>
+          <LoadingDots class="es-icon" variant="history" block />
           <p>正在加载面试详情</p>
         </div>
 
@@ -230,6 +294,12 @@
                 这条历史记录暂无当时保存的单题修改建议。完成新的模拟面试后，这里会展示完整修改建议。
               </div>
               <template v-else>
+                <div class="qa-quick-grid">
+                  <div v-for="item in quickFeedbackItems(detail.feedback)" :key="item.label" class="qa-quick-item">
+                    <span>{{ item.label }}</span>
+                    <p>{{ item.value }}</p>
+                  </div>
+                </div>
                 <div
                   v-for="(section, sectionIndex) in feedbackSections(detail.feedback)"
                   :key="section.title"
@@ -241,10 +311,6 @@
                       {{ point }}
                     </li>
                   </ul>
-                </div>
-                <div class="qa-advice-summary">
-                  <strong>改进建议</strong>
-                  <p>{{ detail.feedback.suggestion || detail.feedback.summary || '建议围绕问题补充具体场景、个人动作、量化结果和下一步修改方案。' }}</p>
                 </div>
               </template>
             </div>
@@ -258,15 +324,27 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { useInterviewStore } from '../stores/interview'
+import { useRoute } from 'vue-router'
+import LoadingDots from '../components/LoadingDots.vue'
 
 const interviewStore = useInterviewStore()
+const route = useRoute()
+const personalizedHint = ref('')
+const activeInterviewContext = ref(loadStoredInterviewContext())
 const answerText = ref('')
 const chatMessagesRef = ref(null)
 const expandedReportAnalysisIndexes = ref(new Set())
 const expandedHistoryAdviceIndexes = ref(new Set())
 
-onMounted(() => {
+onMounted(async () => {
   interviewStore.fetchHistory()
+  const context = loadStoredInterviewContext()
+  if (context) {
+    activeInterviewContext.value = context
+  }
+  if ((route.query.from === 'resume' || route.query.from === 'job') && !interviewStore.questions.length && !interviewStore.isStarting) {
+    await startFromStoredContext()
+  }
 })
 
 const answeredTurns = computed(() => {
@@ -281,6 +359,13 @@ const currentQuestion = computed(() => {
   return interviewStore.questions[interviewStore.currentQuestionIndex] || ''
 })
 
+const contextRequirementSummary = computed(() => {
+  const text = activeInterviewContext.value?.requirements || activeInterviewContext.value?.jd_content || ''
+  return String(text).replace(/\s+/g, ' ').slice(0, 96)
+})
+
+const structuredReview = computed(() => interviewStore.report?.interview_review || null)
+
 const reportAdviceItems = computed(() => {
   const advice = interviewStore.report?.advice || ''
   return advice
@@ -289,6 +374,42 @@ const reportAdviceItems = computed(() => {
     .filter(item => !isInternalReviewNote(item))
     .filter(Boolean)
 })
+
+function loadStoredInterviewContext() {
+  const raw = sessionStorage.getItem('offer_compass_interview_context') || sessionStorage.getItem('resume_interview_context')
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+async function startFromStoredContext() {
+  const context = loadStoredInterviewContext()
+  if (!context) return
+  try {
+    activeInterviewContext.value = context
+    personalizedHint.value = context.job_title ? `正在围绕「${context.job_title}」生成面试问题` : '正在围绕当前 JD 生成面试问题'
+    await interviewStore.start(context.job_type || 'pm', context)
+    sessionStorage.setItem('offer_compass_interview_context', JSON.stringify(context))
+    scrollChatToBottom()
+  } catch {
+    personalizedHint.value = ''
+  }
+}
+
+function stageLabel(stage) {
+  const labels = {
+    saved: '已加入投递',
+    applied: '已投递',
+    written: '笔试阶段',
+    interview: '面试阶段',
+    offer: 'Offer 阶段',
+    rejected: '未通过'
+  }
+  return labels[stage] || stage
+}
 
 function scrollChatToBottom() {
   nextTick(() => {
@@ -323,6 +444,32 @@ const historyDetails = computed(() => {
     feedback: feedbacks[index] || null
   }))
 })
+
+function quickFeedbackItems(feedback) {
+  if (!feedback) return []
+  return [
+    {
+      label: '本题结论',
+      value: feedback.quick_judgement || feedback.summary || '方向基本相关，但证据不够。'
+    },
+    {
+      label: '最该补',
+      value: feedback.most_important_fix || firstFeedbackPoint(feedback.missed_points) || feedback.suggestion || '补清楚你的个人动作和验证结果。'
+    },
+    {
+      label: '下一版回答',
+      value: feedback.rewrite_example || feedback.sample_rewrite || firstFeedbackPoint(feedback.rewrite_advice) || '下一版先正面回答问题，再补具体场景、个人动作和结果。'
+    },
+    {
+      label: '可能追问',
+      value: feedback.follow_up_question || '这个结果你是怎么验证的？'
+    }
+  ]
+}
+
+function firstFeedbackPoint(points) {
+  return Array.isArray(points) && points.length ? points[0] : ''
+}
 
 function feedbackSections(feedback) {
   if (!feedback) return []
@@ -396,6 +543,8 @@ function isInternalReviewNote(text) {
 
 async function startInterview(jobType) {
   if (interviewStore.isStarting) return
+  activeInterviewContext.value = null
+  sessionStorage.removeItem('offer_compass_interview_context')
   await interviewStore.start(jobType)
   scrollChatToBottom()
 }
@@ -422,6 +571,7 @@ async function submitAnswer() {
 
 function resetInterview() {
   expandedReportAnalysisIndexes.value = new Set()
+  activeInterviewContext.value = loadStoredInterviewContext()
   interviewStore.reset()
   interviewStore.fetchHistory()
 }
@@ -629,6 +779,54 @@ function formatDate(dateStr) {
   font-size: 13px;
   line-height: 1.5;
 }
+
+.mf-kicker {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+.mf-quick-grid,
+.qa-quick-grid {
+  display: grid;
+  gap: 10px;
+}
+.mf-quick-item,
+.qa-quick-item {
+  background: rgba(255,255,255,.76);
+  border: 1px solid rgba(67, 97, 238, .12);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.mf-quick-item span,
+.qa-quick-item span {
+  color: var(--blue);
+  display: block;
+  font-size: 12px;
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+.mf-quick-item p,
+.qa-quick-item p {
+  color: var(--dark);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+.mf-detail {
+  border-top: 1px solid rgba(15, 23, 42, .08);
+  margin-top: 12px;
+  padding-top: 10px;
+}
+.mf-detail summary {
+  color: var(--blue);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+.qa-quick-grid {
+  margin-bottom: 12px;
+}
 .mf-item {
   padding: 12px 0;
   border-bottom: 1px solid rgba(15, 23, 42, .08);
@@ -742,6 +940,90 @@ function formatDate(dateStr) {
   background: #fff;
   box-shadow: 0 12px 30px rgba(15, 23, 42, .06);
 }
+
+.coach-review-card {
+  margin-bottom: 22px;
+  padding: 18px 0;
+  border: 1px solid rgba(15, 23, 42, .1);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, .07);
+}
+
+.coach-main-problem {
+  margin: 0 18px 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+
+.coach-main-problem span {
+  display: block;
+  margin-bottom: 4px;
+  color: #c2410c;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.coach-main-problem strong {
+  color: var(--dark);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.weakness-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 18px 14px;
+}
+
+.weakness-tags span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.coach-review-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.coach-review-block {
+  padding: 14px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.coach-review-block.full {
+  grid-column: 1 / -1;
+}
+
+.coach-review-block h4 {
+  margin: 0 0 8px;
+  color: var(--dark);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.coach-review-block ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.coach-review-block li {
+  margin-bottom: 6px;
+  color: var(--medium);
+  font-size: 13px;
+  line-height: 1.55;
+}
 .summary-section-head {
   display: flex;
   justify-content: space-between;
@@ -808,4 +1090,67 @@ function formatDate(dateStr) {
     flex-direction: column;
   }
 }
+.interview-context-card {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f8fbff 0%, #ffffff 100%);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, .08);
+}
+
+.context-kicker {
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  margin-bottom: 4px;
+}
+
+.context-title {
+  color: var(--dark);
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.context-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.context-meta span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--blue-light);
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.context-summary {
+  margin: 9px 0 0;
+  color: var(--medium);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.personalized-hint {
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  border-radius: 12px;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin: 12px 0 16px;
+  padding: 10px 12px;
+}
+.personalized-hint.in-chat {
+  margin-top: -4px;
+}
+
 </style>
+

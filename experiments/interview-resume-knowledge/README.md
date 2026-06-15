@@ -1,43 +1,42 @@
-# Interview And Resume Knowledge Experiment
+# 面试与简历知识实验区
 
-## Purpose
+## 目的
 
-This folder isolates interview and resume knowledge extracted from private learning materials before it is wired into product code.
+本目录用于隔离整理面试和简历相关知识，再决定是否接入正式产品代码。
 
-The goal is not to copy course content into the app. The goal is to convert useful ideas into maintainable product rules.
+这里的目标不是复制课程原文到应用里，而是把有用方法转化为可维护的产品规则。
 
-## Source Materials Reviewed
+## 已参考材料
 
-- Resume writing method material
-- Interview practice material
-- Self-selling / interview value expression slide deck
+- 简历写作方法材料
+- 面试练习材料
+- 自我销售 / 面试价值表达材料
 
-## Product Direction
+## 产品方向
 
-Use the materials to improve:
+这些材料可用于改进：
 
-1. Resume analysis and rewrite feedback
-2. Mock interview qualitative feedback
-3. Interview answer rewrite suggestions
+1. 简历分析和改写反馈。
+2. 模拟面试定性反馈。
+3. 面试回答优化建议。
 
-Do not train a model in this MVP. Use the knowledge as:
+MVP 阶段不训练模型。相关知识只作为：
 
-- prompt rules
-- evaluation rubrics
-- test cases
-- product copy guidelines
+- prompt 规则
+- 评价维度
+- 测试用例
+- 产品文案规范
 
-## Safety Boundary
+## 安全边界
 
-- Do not upload private source files to external systems.
-- Do not paste long original excerpts into prompts.
-- Extract only general rules and product logic.
-- Keep source PDFs/PPTX outside the repo unless the user explicitly approves.
+- 不把私有源文件上传到外部系统。
+- 不把大段原文粘贴进 prompt。
+- 只提炼通用规则和产品逻辑。
+- 未经用户明确同意，不把源 PDF / PPTX 放入仓库。
 
-## Next Integration Targets
+## 后续接入目标
 
-1. `backend/app/services/interview_rubric.py`
-2. `backend/app/services/resume_rubric.py`
-3. Backend prompts for interview and resume analysis
-4. Frontend display: concrete feedback, not abstract scores
-
+1. `backend/app/services/interview_knowledge.py`
+2. `backend/app/services/resume_knowledge.py`
+3. 后端简历和面试分析 prompt
+4. 前端反馈展示：强调具体建议，不只展示抽象分数

@@ -18,6 +18,8 @@ export const useInterviewStore = defineStore('interview', () => {
   const historyDetail = ref(null)
   const isLoadingDetail = ref(false)
   const answerError = ref('')
+  const sourceContext = ref(null)
+  const interviewReviews = ref(JSON.parse(localStorage.getItem('offer_compass_interview_reviews') || '[]'))
   let historyPromise = null
   let historyFetchedAt = 0
 
@@ -29,7 +31,7 @@ export const useInterviewStore = defineStore('interview', () => {
     pm: '产品经理'
   }
 
-  async function start(jobTypeVal) {
+  async function start(jobTypeVal, context = null) {
     isStarting.value = true
     jobType.value = jobTypeVal
     isCompleted.value = false
@@ -39,15 +41,19 @@ export const useInterviewStore = defineStore('interview', () => {
     feedbacks.value = []
     report.value = null
     answerError.value = ''
+    sourceContext.value = context
 
     try {
-      const response = await interviewApi.start(jobTypeVal)
+      const response = await interviewApi.start(jobTypeVal, context)
       questions.value = response.data.questions
       interviewId.value = response.data.id
       return response.data
-    } catch {
-      questions.value = getModernMockQuestions(jobTypeVal)
-      interviewId.value = 'mock-' + Date.now()
+    } catch (error) {
+      questions.value = []
+      interviewId.value = null
+      const detail = error.response?.data?.detail
+      answerError.value = `面试启动失败，请稍后重试。${detail ? `原因：${detail}` : ''}`
+      throw error
     } finally {
       isStarting.value = false
     }
@@ -82,12 +88,190 @@ export const useInterviewStore = defineStore('interview', () => {
   async function complete() {
     try {
       const response = await interviewApi.complete(interviewId.value)
-      report.value = response.data
+      report.value = attachStructuredReview(response.data)
     } catch {
-      report.value = generateMockReport()
+      report.value = attachStructuredReview(generateMockReport())
     }
+    persistInterviewReview(report.value.interview_review)
     isCompleted.value = true
     return report.value
+  }
+
+  function attachStructuredReview(reportData) {
+    const review = buildStructuredReview(reportData || {})
+    const interviewContext = pickReviewContext(review)
+    return {
+      ...(reportData || {}),
+      interview_context: interviewContext,
+      interview_review: review
+    }
+  }
+
+  function buildStructuredReview(reportData) {
+    const allFeedbacks = feedbacks.value.filter(Boolean)
+    const hitPoints = uniqueList(allFeedbacks.flatMap(item => item.hit_points || []))
+    const missedPoints = uniqueList(allFeedbacks.flatMap(item => item.missed_points || []))
+    const rewriteAdvice = uniqueList(allFeedbacks.flatMap(item => item.rewrite_advice || []))
+    const summaries = uniqueList(allFeedbacks.map(item => item.quick_judgement || item.summary).filter(Boolean))
+    const context = sourceContext.value || {}
+    const mainProblem = firstUseful([
+      ...allFeedbacks.map(item => item.most_important_fix),
+      ...missedPoints,
+      reportData.advice
+    ], '回答还没有稳定扣回岗位要求，需要补充具体场景、个人动作和结果证据。')
+
+    const contextSnapshot = buildContextSnapshot(context)
+
+    return {
+      id: `interview-review-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      ...contextSnapshot,
+      job_type: jobType.value,
+      job_title: contextSnapshot.job_title || jobTypeNames[jobType.value] || '目标岗位',
+      company: contextSnapshot.company,
+      jd_summary: contextSnapshot.jd_summary,
+      hit_points: hitPoints.length ? hitPoints.slice(0, 4) : summaries.slice(0, 2),
+      main_problem: mainProblem,
+      weakness_tags: deriveWeaknessTags(missedPoints, rewriteAdvice, mainProblem).slice(0, 4),
+      resume_rewrite_clues: buildResumeRewriteClues(rewriteAdvice, missedPoints, context).slice(0, 4),
+      next_actions: buildNextActions(mainProblem, rewriteAdvice, context).slice(0, 4)
+    }
+  }
+
+  function uniqueList(items) {
+    const result = []
+    items.forEach(item => {
+      const text = String(item || '').trim()
+      if (text && !result.includes(text)) result.push(text)
+    })
+    return result
+  }
+
+  function firstUseful(items, fallback) {
+    const found = items.map(item => String(item || '').trim()).find(Boolean)
+    return found || fallback
+  }
+
+  function buildContextSnapshot(context = {}) {
+    const jdText = String(context.requirements || context.jd_content || '').trim()
+    const resumeText = String(context.resume_content || context.resumeContent || '').trim()
+    return {
+      applicationRecordId: context.applicationRecordId || context.application_record_id || '',
+      jobId: context.jobId || context.job_id || '',
+      resumeVersionId: context.resumeVersionId || context.resume_version_id || '',
+      source: context.source || '',
+      company: context.company || '',
+      job_title: context.job_title || context.jobTitle || '',
+      requirements: jdText.slice(0, 1000),
+      jd_content: jdText.slice(0, 1000),
+      jd_summary: jdText.slice(0, 180),
+      deadline: context.deadline || '',
+      application_stage: context.application_stage || context.stage || '',
+      job_url: context.job_url || context.url || '',
+      has_resume_context: Boolean(resumeText),
+      resume_context_summary: resumeText.slice(0, 220),
+      analysis_result_summary: buildAnalysisResultSummary(context.analysis_result || context.analysisResult)
+    }
+  }
+
+  function buildAnalysisResultSummary(analysisResult) {
+    if (!analysisResult || typeof analysisResult !== 'object') return null
+    return {
+      match_score: analysisResult.match_score || 0,
+      readiness_level: analysisResult.readiness_level || '',
+      readiness_label: analysisResult.readiness_label || '',
+      missing_requirements: uniqueList(analysisResult.missing_requirements || []).slice(0, 4),
+      rewrite_templates: uniqueList(analysisResult.rewrite_templates || []).slice(0, 4)
+    }
+  }
+
+  function pickReviewContext(review = {}) {
+    return {
+      applicationRecordId: review.applicationRecordId || '',
+      jobId: review.jobId || '',
+      resumeVersionId: review.resumeVersionId || '',
+      source: review.source || '',
+      company: review.company || '',
+      job_title: review.job_title || '',
+      job_type: review.job_type || '',
+      deadline: review.deadline || '',
+      application_stage: review.application_stage || '',
+      job_url: review.job_url || '',
+      jd_summary: review.jd_summary || '',
+      has_resume_context: Boolean(review.has_resume_context)
+    }
+  }
+
+  function deriveWeaknessTags(missedPoints, rewriteAdvice, mainProblem) {
+    const text = [...missedPoints, ...rewriteAdvice, mainProblem].join(' ')
+    const tags = []
+    const rules = [
+      ['岗位匹配', /岗位|JD|匹配|要求|方向/],
+      ['项目证据', /项目|经历|场景|案例|证据|动作/],
+      ['量化结果', /数据|指标|结果|验证|量化|提升|转化/],
+      ['结构表达', /结构|STAR|逻辑|结论|表达|回答/],
+      ['业务理解', /业务|用户|商业|运营|场景|价值/],
+      ['专业深度', /技术|模型|算法|材料|低空|机器人|专业/]
+    ]
+    rules.forEach(([tag, reg]) => {
+      if (reg.test(text) && !tags.includes(tag)) tags.push(tag)
+    })
+    if (!tags.length) tags.push('岗位匹配', '项目证据')
+    return tags
+  }
+
+  function buildResumeRewriteClues(rewriteAdvice, missedPoints, context) {
+    const clues = rewriteAdvice.length ? rewriteAdvice : missedPoints
+    if (clues.length) {
+      return clues.map(item => `把「${String(item).slice(0, 42)}」补成简历里的项目动作、方法和结果。`)
+    }
+    const jobTitle = context.job_title || '目标岗位'
+    return [
+      `围绕「${jobTitle}」补一段最能证明岗位匹配度的项目经历。`,
+      '每段经历至少写清楚场景、个人动作、工具方法和可验证结果。'
+    ]
+  }
+
+  function buildNextActions(mainProblem, rewriteAdvice, context) {
+    const actions = [
+      `先针对最大问题复练一轮：${mainProblem}`,
+      '回到简历页，把本次面试暴露出的证据缺口补进对应项目经历。'
+    ]
+    if (rewriteAdvice.length) actions.push(`下一次回答先按这条改：${rewriteAdvice[0]}`)
+    if (context.job_title) actions.push(`继续围绕「${context.job_title}」准备 2 个更具体的岗位案例。`)
+    return uniqueList(actions)
+  }
+
+  function persistInterviewReview(review) {
+    if (!review) return
+    interviewReviews.value = [review, ...interviewReviews.value].slice(0, 30)
+    localStorage.setItem('offer_compass_interview_reviews', JSON.stringify(interviewReviews.value))
+
+    const profileSignals = JSON.parse(localStorage.getItem('offer_compass_user_profile_signals') || '{}')
+    const contextSummary = {
+      applicationRecordId: review.applicationRecordId || '',
+      jobId: review.jobId || '',
+      resumeVersionId: review.resumeVersionId || '',
+      source: review.source || '',
+      company: review.company || '',
+      job_title: review.job_title || '',
+      deadline: review.deadline || '',
+      jd_summary: review.jd_summary || '',
+      has_resume_context: Boolean(review.has_resume_context)
+    }
+    const nextSignals = {
+      ...profileSignals,
+      latestInterviewReview: review,
+      latestInterviewContext: contextSummary,
+      interviewContextIndex: [
+        contextSummary,
+        ...(profileSignals.interviewContextIndex || [])
+      ].filter(item => item.applicationRecordId || item.jobId || item.resumeVersionId).slice(0, 20),
+      weaknessTags: uniqueList([...(profileSignals.weaknessTags || []), ...(review.weakness_tags || [])]).slice(0, 12),
+      resumeRewriteClues: uniqueList([...(review.resume_rewrite_clues || []), ...(profileSignals.resumeRewriteClues || [])]).slice(0, 12),
+      updatedAt: new Date().toISOString()
+    }
+    localStorage.setItem('offer_compass_user_profile_signals', JSON.stringify(nextSignals))
   }
 
   function reset() {
@@ -101,6 +285,7 @@ export const useInterviewStore = defineStore('interview', () => {
     isCompleted.value = false
     report.value = null
     answerError.value = ''
+    sourceContext.value = null
   }
 
   async function fetchHistory() {
@@ -346,6 +531,8 @@ export const useInterviewStore = defineStore('interview', () => {
     historyDetail,
     isLoadingDetail,
     answerError,
+    sourceContext,
+    interviewReviews,
     start,
     answer,
     complete,
